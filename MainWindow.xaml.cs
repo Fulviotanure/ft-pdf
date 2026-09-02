@@ -48,19 +48,39 @@ namespace FtPdf
         {
             try
             {
+                // Set background color to match app background (#0F172A)
+                PdfWebViewer.DefaultBackgroundColor = System.Drawing.Color.FromArgb(15, 23, 42);
+
                 await PdfWebViewer.EnsureCoreWebView2Async();
                 _isWebViewInitialized = true;
                 PdfWebViewer.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 PdfWebViewer.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                PdfWebViewer.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                PdfWebViewer.CoreWebView2.Settings.IsZoomControlEnabled = false;
 
                 if (_activeTab != null && File.Exists(_activeTab.FilePath))
                 {
-                    PdfWebViewer.CoreWebView2.Navigate(new Uri(_activeTab.FilePath).AbsoluteUri);
+                    NavigateToPdf(_activeTab.FilePath);
                 }
             }
             catch
             {
                 // Fallback gracefully
+            }
+        }
+
+        private void NavigateToPdf(string filePath)
+        {
+            // #toolbar=0&navpanes=0 completely hides the native browser toolbar,
+            // zoom buttons, print, save and the 3-dots settings menu
+            string cleanUrl = $"{new Uri(filePath).AbsoluteUri}#toolbar=0&navpanes=0";
+            if (_isWebViewInitialized && PdfWebViewer.CoreWebView2 != null)
+            {
+                PdfWebViewer.CoreWebView2.Navigate(cleanUrl);
+            }
+            else
+            {
+                PdfWebViewer.Source = new Uri(cleanUrl);
             }
         }
 
@@ -151,15 +171,8 @@ namespace FtPdf
             BtnQuickSave.Visibility = Visibility.Visible;
             BtnQuickCopy.Visibility = Visibility.Visible;
 
-            // Load the original vector PDF file directly in the Chromium PDF engine
-            if (_isWebViewInitialized && PdfWebViewer.CoreWebView2 != null)
-            {
-                PdfWebViewer.CoreWebView2.Navigate(new Uri(tab.FilePath).AbsoluteUri);
-            }
-            else
-            {
-                PdfWebViewer.Source = new Uri(tab.FilePath);
-            }
+            // Load the original vector PDF file cleanly without native browser toolbars
+            NavigateToPdf(tab.FilePath);
 
             UpdateNotepadView();
         }
