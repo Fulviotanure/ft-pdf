@@ -5,16 +5,11 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using FtPdf.Dialogs;
 using FtPdf.Models;
 using FtPdf.Services;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf.IO;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using Brushes = System.Windows.Media.Brushes;
@@ -26,20 +21,13 @@ using Clipboard = System.Windows.Clipboard;
 using Path = System.IO.Path;
 using Cursors = System.Windows.Input.Cursors;
 using Button = System.Windows.Controls.Button;
-using TextBox = System.Windows.Controls.TextBox;
-using ComboBox = System.Windows.Controls.ComboBox;
 using Orientation = System.Windows.Controls.Orientation;
-using Image = System.Windows.Controls.Image;
+using StackPanel = System.Windows.Controls.StackPanel;
+using TextBlock = System.Windows.Controls.TextBlock;
+using Border = System.Windows.Controls.Border;
 
 namespace FtPdf
 {
-    public enum ActiveToolMode
-    {
-        None,
-        InsertText,
-        Highlight
-    }
-
     public partial class MainWindow : Window
     {
         private readonly ObservableCollection<PdfDocumentTab> _tabs = new();
@@ -48,39 +36,31 @@ namespace FtPdf
         private readonly PdfEditingService _editingService = new();
         private bool _isRawTextMode = false;
         private bool _isNotepadOpen = false;
-        private ActiveToolMode _currentToolMode = ActiveToolMode.None;
-
-        // Text Selection State
-        private bool _isTextSelecting = false;
-        private System.Windows.Point _selectionStart;
-        private System.Windows.Shapes.Rectangle? _selectionMarquee;
-        private readonly List<PageWordItem> _currentlySelectedWords = new();
-        private Canvas? _activeSelectionCanvas;
-        private Border? _activeSelectionToolbar;
-
-        // Highlighter Dragging State
-        private bool _isHighlightDragging = false;
-        private System.Windows.Point _highlightStartPoint;
-        private System.Windows.Shapes.Rectangle? _currentHighlightRect;
-
-        // In-place Text Box overlay
-        private Border? _activeInPlaceBox;
+        private bool _isWebViewInitialized = false;
 
         public MainWindow()
         {
             InitializeComponent();
+            InitializeViewerAsync();
         }
 
-        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private async void InitializeViewerAsync()
         {
-            if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+            try
             {
-                if (!string.IsNullOrEmpty(_activeTab?.CurrentlySelectedText))
+                await PdfWebViewer.EnsureCoreWebView2Async();
+                _isWebViewInitialized = true;
+                PdfWebViewer.CoreWebView2.Settings.IsStatusBarEnabled = false;
+                PdfWebViewer.CoreWebView2.Settings.AreDevToolsEnabled = false;
+
+                if (_activeTab != null && File.Exists(_activeTab.FilePath))
                 {
-                    Clipboard.SetText(_activeTab.CurrentlySelectedText);
-                    e.Handled = true;
-                    MessageBox.Show(this, $"Texto copiado:\n\"{_activeTab.CurrentlySelectedText}\"", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
+                    PdfWebViewer.CoreWebView2.Navigate(new Uri(_activeTab.FilePath).AbsoluteUri);
                 }
+            }
+            catch
+            {
+                // Fallback gracefully
             }
         }
 
@@ -108,7 +88,7 @@ namespace FtPdf
             }
         }
 
-        public async void OpenTab(string filePath)
+        public void OpenTab(string filePath)
         {
             try
             {
@@ -118,6 +98,7 @@ namespace FtPdf
                     return;
                 }
 
+                // If already open in a tab, just activate it
                 var existing = _tabs.FirstOrDefault(t => t.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
@@ -127,22 +108,11 @@ namespace FtPdf
 
                 var tab = new PdfDocumentTab
                 {
-                    FilePath = filePath,
-                    Document = PdfiumViewer.PdfDocument.Load(filePath)
+                    FilePath = filePath
                 };
-
-                // Render pages at crystal clear 300 DPI
-                await RenderAllPagesForTab(tab);
 
                 _tabs.Add(tab);
                 SetActiveTab(tab);
-
-                // Extract word coordinates for text selection in background
-                _ = Task.Run(() =>
-                {
-                    var textPages = _editingService.ExtractTextLayers(filePath, 820.0);
-                    Dispatcher.Invoke(() => tab.TextPages = textPages);
-                });
 
                 // Run extraction & integrity analysis in background
                 _ = Task.Run(() =>
@@ -151,6 +121,7 @@ namespace FtPdf
                     Dispatcher.Invoke(() =>
                     {
                         tab.Extraction = result;
+                        tab.TotalPages = result.Report.TotalPages;
                         if (_activeTab == tab)
                         {
                             UpdateNotepadView();
@@ -161,21 +132,6 @@ namespace FtPdf
             catch (Exception ex)
             {
                 MessageBox.Show(this, $"Erro ao abrir o arquivo PDF:\n{ex.Message}", "Falha na Leitura", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
-
-        private async Task RenderAllPagesForTab(PdfDocumentTab tab)
-        {
-            if (tab.Document == null) return;
-            tab.RenderedPages.Clear();
-
-            int count = tab.TotalPages;
-            for (int i = 0; i < count; i++)
-            {
-                int pageIndex = i;
-                // High-resolution 300 DPI for crystal clear vector-sharp text
-                var bmpSource = await Task.Run(() => PdfEditingService.RenderPageToBitmapSource(tab.Document, pageIndex, 300));
-                tab.RenderedPages.Add(bmpSource);
             }
         }
 
@@ -195,7 +151,16 @@ namespace FtPdf
             BtnQuickSave.Visibility = Visibility.Visible;
             BtnQuickCopy.Visibility = Visibility.Visible;
 
-            DisplayActivePages();
+            // Load the original vector PDF file directly in the Chromium PDF engine
+            if (_isWebViewInitialized && PdfWebViewer.CoreWebView2 != null)
+            {
+                PdfWebViewer.CoreWebView2.Navigate(new Uri(tab.FilePath).AbsoluteUri);
+            }
+            else
+            {
+                PdfWebViewer.Source = new Uri(tab.FilePath);
+            }
+
             UpdateNotepadView();
         }
 
@@ -235,8 +200,6 @@ namespace FtPdf
             BtnToggleNotepad.Visibility = Visibility.Collapsed;
             BtnQuickSave.Visibility = Visibility.Collapsed;
             BtnQuickCopy.Visibility = Visibility.Collapsed;
-            BarActiveToolHint.Visibility = Visibility.Collapsed;
-            PdfPagesContainer.Children.Clear();
             CloseNotepad();
         }
 
@@ -311,146 +274,47 @@ namespace FtPdf
             }
         }
 
-        #region Page Display & Interactive Text Selection Layer
-
-        private void DisplayActivePages()
-        {
-            PdfPagesContainer.Children.Clear();
-            RemoveInPlaceBox();
-            ClearActiveSelection();
-
-            if (_activeTab == null || _activeTab.RenderedPages.Count == 0) return;
-
-            for (int i = 0; i < _activeTab.RenderedPages.Count; i++)
-            {
-                int pageIndex = i;
-                var bmp = _activeTab.RenderedPages[i];
-
-                double displayWidth = 820;
-                double aspectRatio = (double)bmp.PixelHeight / bmp.PixelWidth;
-                double displayHeight = displayWidth * aspectRatio;
-
-                var pageGrid = new Grid
-                {
-                    Width = displayWidth,
-                    Height = displayHeight,
-                    Margin = new Thickness(0, 0, 0, 20),
-                    Background = Brushes.White
-                };
-
-                // Drop shadow & border
-                var border = new Border
-                {
-                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(3),
-                    Effect = new System.Windows.Media.Effects.DropShadowEffect
-                    {
-                        Color = Colors.Black,
-                        Opacity = 0.35,
-                        BlurRadius = 10,
-                        ShadowDepth = 3
-                    }
-                };
-
-                // Crisp image with HighQuality bilinear/bicubic scaling
-                var img = new Image
-                {
-                    Source = bmp,
-                    Width = displayWidth,
-                    Height = displayHeight,
-                    Stretch = Stretch.Uniform
-                };
-                RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
-                RenderOptions.SetEdgeMode(img, EdgeMode.Aliased);
-
-                // Layer 1: Selection Canvas (where blue boxes for selected text are drawn)
-                var selectionCanvas = new Canvas
-                {
-                    Width = displayWidth,
-                    Height = displayHeight,
-                    Background = Brushes.Transparent,
-                    IsHitTestVisible = false
-                };
-
-                // Layer 2: Interaction Canvas (receives mouse clicks, drags, and in-place tools)
-                var interactionCanvas = new Canvas
-                {
-                    Width = displayWidth,
-                    Height = displayHeight,
-                    Background = Brushes.Transparent,
-                    Tag = pageIndex
-                };
-
-                UpdateCanvasCursor(interactionCanvas);
-
-                // Mouse handlers for Text Selection, Highlighter and Text Inserter
-                interactionCanvas.MouseLeftButtonDown += (s, e) => OnCanvasMouseDown(interactionCanvas, selectionCanvas, pageIndex, e);
-                interactionCanvas.MouseMove += (s, e) => OnCanvasMouseMove(interactionCanvas, selectionCanvas, pageIndex, e);
-                interactionCanvas.MouseLeftButtonUp += (s, e) => OnCanvasMouseUp(interactionCanvas, selectionCanvas, pageIndex, e);
-
-                border.Child = img;
-                pageGrid.Children.Add(border);
-                pageGrid.Children.Add(selectionCanvas);
-                pageGrid.Children.Add(interactionCanvas);
-
-                PdfPagesContainer.Children.Add(pageGrid);
-            }
-        }
-
-        private void UpdateCanvasCursor(Canvas canvas)
-        {
-            switch (_currentToolMode)
-            {
-                case ActiveToolMode.InsertText:
-                case ActiveToolMode.Highlight:
-                    canvas.Cursor = Cursors.Cross;
-                    break;
-                default:
-                    canvas.Cursor = Cursors.IBeam; // Selectable text cursor
-                    break;
-            }
-        }
-
-        private void RefreshAllCanvasCursors()
-        {
-            foreach (var child in PdfPagesContainer.Children)
-            {
-                if (child is Grid g)
-                {
-                    foreach (var elem in g.Children)
-                    {
-                        if (elem is Canvas c && c.IsHitTestVisible)
-                        {
-                            UpdateCanvasCursor(c);
-                        }
-                    }
-                }
-            }
-        }
-
-        #endregion
-
-        #region Tool Modes (InsertText, Highlight)
+        #region Editing Tools Handlers
 
         private void BtnToolText_Click(object sender, RoutedEventArgs e)
         {
             if (_activeTab == null) return;
 
-            if (_currentToolMode == ActiveToolMode.InsertText)
+            var dialog = new InsertTextDialog(_activeTab.TotalPages, 1) { Owner = this };
+
+            if (dialog.ShowDialog() == true)
             {
-                ExitToolMode();
-            }
-            else
-            {
-                _currentToolMode = ActiveToolMode.InsertText;
-                TxtToolHintIcon.Text = "✍️";
-                TxtToolHint.Text = "Modo Inserir Texto: Clique em qualquer local da página para adicionar sua anotação.";
-                BarActiveToolHint.Visibility = Visibility.Visible;
-                BtnToolText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB"));
-                BtnToolHighlight.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
-                ClearActiveSelection();
-                RefreshAllCanvasCursors();
+                try
+                {
+                    var saveDialog = new SaveFileDialog
+                    {
+                        Filter = "Arquivo PDF (*.pdf)|*.pdf",
+                        DefaultExt = "pdf",
+                        FileName = Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_editado.pdf",
+                        Title = "Salvar PDF com Texto Inserido"
+                    };
+
+                    if (saveDialog.ShowDialog(this) == true)
+                    {
+                        _editingService.InsertText(
+                            _activeTab.FilePath,
+                            saveDialog.FileName,
+                            dialog.PageNumber,
+                            dialog.TextToInsert,
+                            dialog.PosX,
+                            dialog.PosY,
+                            dialog.FontSizeValue,
+                            dialog.TextColor
+                        );
+
+                        OpenTab(saveDialog.FileName);
+                        MessageBox.Show(this, "Texto inserido com sucesso!", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Erro ao inserir texto no PDF:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
@@ -458,589 +322,47 @@ namespace FtPdf
         {
             if (_activeTab == null) return;
 
-            if (_currentToolMode == ActiveToolMode.Highlight)
+            var dialog = new HighlightDialog(_activeTab.TotalPages, 1) { Owner = this };
+
+            if (dialog.ShowDialog() == true)
             {
-                ExitToolMode();
-            }
-            else
-            {
-                _currentToolMode = ActiveToolMode.Highlight;
-                TxtToolHintIcon.Text = "🖍️";
-                TxtToolHint.Text = "Marcador Amarelo: Clique e arraste sobre o texto para grifar diretamente na página.";
-                BarActiveToolHint.Visibility = Visibility.Visible;
-                BtnToolHighlight.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EAB308"));
-                BtnToolText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
-                ClearActiveSelection();
-                RefreshAllCanvasCursors();
-            }
-        }
-
-        private void BtnExitToolMode_Click(object sender, RoutedEventArgs e)
-        {
-            ExitToolMode();
-        }
-
-        private void ExitToolMode()
-        {
-            _currentToolMode = ActiveToolMode.None;
-            BarActiveToolHint.Visibility = Visibility.Collapsed;
-            BtnToolText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
-            BtnToolHighlight.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
-            RemoveInPlaceBox();
-            RefreshAllCanvasCursors();
-        }
-
-        #endregion
-
-        #region Canvas Interactions (Text Selection, Drag Highlight & In-Place Text)
-
-        private void OnCanvasMouseDown(Canvas interactionCanvas, Canvas selectionCanvas, int pageIndex, MouseButtonEventArgs e)
-        {
-            var pos = e.GetPosition(interactionCanvas);
-
-            if (_currentToolMode == ActiveToolMode.InsertText)
-            {
-                SpawnInPlaceTextBox(interactionCanvas, pageIndex, pos);
-            }
-            else if (_currentToolMode == ActiveToolMode.Highlight)
-            {
-                _isHighlightDragging = true;
-                _highlightStartPoint = pos;
-
-                _currentHighlightRect = new System.Windows.Shapes.Rectangle
-                {
-                    Fill = new SolidColorBrush(Color.FromArgb(100, 250, 204, 21)), // Yellow highlight
-                    Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EAB308")),
-                    StrokeThickness = 1
-                };
-
-                Canvas.SetLeft(_currentHighlightRect, pos.X);
-                Canvas.SetTop(_currentHighlightRect, pos.Y);
-                interactionCanvas.Children.Add(_currentHighlightRect);
-                interactionCanvas.CaptureMouse();
-            }
-            else // Normal Reading Mode: Interactive Text Selection
-            {
-                ClearActiveSelection();
-                _isTextSelecting = true;
-                _selectionStart = pos;
-                _activeSelectionCanvas = selectionCanvas;
-
-                _selectionMarquee = new System.Windows.Shapes.Rectangle
-                {
-                    Fill = new SolidColorBrush(Color.FromArgb(40, 59, 130, 246)),
-                    Stroke = new SolidColorBrush(Color.FromArgb(120, 59, 130, 246)),
-                    StrokeThickness = 1
-                };
-                Canvas.SetLeft(_selectionMarquee, pos.X);
-                Canvas.SetTop(_selectionMarquee, pos.Y);
-                selectionCanvas.Children.Add(_selectionMarquee);
-                interactionCanvas.CaptureMouse();
-            }
-        }
-
-        private void OnCanvasMouseMove(Canvas interactionCanvas, Canvas selectionCanvas, int pageIndex, System.Windows.Input.MouseEventArgs e)
-        {
-            var cur = e.GetPosition(interactionCanvas);
-
-            if (_isHighlightDragging && _currentHighlightRect != null)
-            {
-                double x = Math.Min(_highlightStartPoint.X, cur.X);
-                double y = Math.Min(_highlightStartPoint.Y, cur.Y);
-                double w = Math.Abs(cur.X - _highlightStartPoint.X);
-                double h = Math.Abs(cur.Y - _highlightStartPoint.Y);
-
-                Canvas.SetLeft(_currentHighlightRect, x);
-                Canvas.SetTop(_currentHighlightRect, y);
-                _currentHighlightRect.Width = Math.Max(1, w);
-                _currentHighlightRect.Height = Math.Max(1, h);
-            }
-            else if (_isTextSelecting && _selectionMarquee != null && _activeTab != null)
-            {
-                double x = Math.Min(_selectionStart.X, cur.X);
-                double y = Math.Min(_selectionStart.Y, cur.Y);
-                double w = Math.Abs(cur.X - _selectionStart.X);
-                double h = Math.Abs(cur.Y - _selectionStart.Y);
-
-                Canvas.SetLeft(_selectionMarquee, x);
-                Canvas.SetTop(_selectionMarquee, y);
-                _selectionMarquee.Width = Math.Max(1, w);
-                _selectionMarquee.Height = Math.Max(1, h);
-
-                var selRect = new Rect(x, y, w, h);
-
-                // Highlight intersecting words in real time
-                if (_activeTab.TextPages.Count > pageIndex)
-                {
-                    var pageData = _activeTab.TextPages[pageIndex];
-                    _currentlySelectedWords.Clear();
-
-                    // Remove existing word selection boxes (keep only marquee)
-                    for (int i = selectionCanvas.Children.Count - 1; i >= 0; i--)
-                    {
-                        if (selectionCanvas.Children[i] != _selectionMarquee)
-                        {
-                            selectionCanvas.Children.RemoveAt(i);
-                        }
-                    }
-
-                    foreach (var word in pageData.Words)
-                    {
-                        if (selRect.IntersectsWith(word.DisplayBounds))
-                        {
-                            _currentlySelectedWords.Add(word);
-
-                            var wordBox = new System.Windows.Shapes.Rectangle
-                            {
-                                Fill = new SolidColorBrush(Color.FromArgb(90, 59, 130, 246)),
-                                Width = word.DisplayBounds.Width,
-                                Height = word.DisplayBounds.Height
-                            };
-                            Canvas.SetLeft(wordBox, word.DisplayBounds.Left);
-                            Canvas.SetTop(wordBox, word.DisplayBounds.Top);
-                            selectionCanvas.Children.Add(wordBox);
-                        }
-                    }
-                }
-            }
-        }
-
-        private async void OnCanvasMouseUp(Canvas interactionCanvas, Canvas selectionCanvas, int pageIndex, MouseButtonEventArgs e)
-        {
-            if (_isHighlightDragging && _currentHighlightRect != null && _activeTab != null)
-            {
-                interactionCanvas.ReleaseMouseCapture();
-                _isHighlightDragging = false;
-
-                double x = Canvas.GetLeft(_currentHighlightRect);
-                double y = Canvas.GetTop(_currentHighlightRect);
-                double w = _currentHighlightRect.Width;
-                double h = _currentHighlightRect.Height;
-
-                interactionCanvas.Children.Remove(_currentHighlightRect);
-                _currentHighlightRect = null;
-
-                if (w > 5 && h > 4)
-                {
-                    using var pdfDoc = PdfReader.Open(_activeTab.FilePath, PdfDocumentOpenMode.Import);
-                    var page = pdfDoc.Pages[pageIndex];
-                    double scale = page.Width.Point / interactionCanvas.ActualWidth;
-
-                    double pdfX = x * scale;
-                    double pdfY = y * scale;
-                    double pdfW = w * scale;
-                    double pdfH = h * scale;
-
-                    try
-                    {
-                        string tempOut = Path.Combine(Path.GetDirectoryName(_activeTab.FilePath)!,
-                            Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_destaque.pdf");
-
-                        _editingService.AddHighlight(
-                            _activeTab.FilePath,
-                            tempOut,
-                            pageIndex + 1,
-                            pdfX,
-                            pdfY,
-                            pdfW,
-                            pdfH,
-                            XColor.FromArgb(250, 204, 21)
-                        );
-
-                        _activeTab.Document?.Dispose();
-                        _activeTab.FilePath = tempOut;
-                        _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
-                        await RenderAllPagesForTab(_activeTab);
-                        DisplayActivePages();
-                        TxtTitle.Text = _activeTab.FileName;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(this, $"Erro ao aplicar destaque:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-            }
-            else if (_isTextSelecting && _activeTab != null)
-            {
-                interactionCanvas.ReleaseMouseCapture();
-                _isTextSelecting = false;
-
-                if (_selectionMarquee != null)
-                {
-                    selectionCanvas.Children.Remove(_selectionMarquee);
-                    _selectionMarquee = null;
-                }
-
-                if (_currentlySelectedWords.Count > 0)
-                {
-                    _activeTab.CurrentlySelectedText = string.Join(" ", _currentlySelectedWords.Select(w => w.Text));
-                    var lastWord = _currentlySelectedWords.Last();
-                    ShowSelectionFloatingToolbar(interactionCanvas, pageIndex, new System.Windows.Point(lastWord.DisplayBounds.Right, lastWord.DisplayBounds.Bottom));
-                }
-                else
-                {
-                    ClearActiveSelection();
-                }
-            }
-        }
-
-        private void ShowSelectionFloatingToolbar(Canvas interactionCanvas, int pageIndex, System.Windows.Point pos)
-        {
-            RemoveSelectionFloatingToolbar();
-
-            var toolbar = new Border
-            {
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(4),
-                Effect = new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    Color = Colors.Black,
-                    Opacity = 0.4,
-                    BlurRadius = 8,
-                    ShadowDepth = 2
-                }
-            };
-
-            var sp = new StackPanel { Orientation = Orientation.Horizontal };
-
-            var btnCopy = new Button
-            {
-                Content = "📋 Copiar",
-                FontSize = 11.5,
-                FontWeight = FontWeights.SemiBold,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
-                Foreground = Brushes.White,
-                Padding = new Thickness(8, 4, 8, 4),
-                Margin = new Thickness(0, 0, 4, 0),
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-            btnCopy.Click += (s, e) =>
-            {
-                if (!string.IsNullOrEmpty(_activeTab?.CurrentlySelectedText))
-                {
-                    Clipboard.SetText(_activeTab.CurrentlySelectedText);
-                    MessageBox.Show(this, "Texto copiado para a Área de Transferência com sucesso!", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                ClearActiveSelection();
-            };
-
-            var btnHighlight = new Button
-            {
-                Content = "🖍️ Grifar",
-                FontSize = 11.5,
-                FontWeight = FontWeights.SemiBold,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EAB308")),
-                Foreground = Brushes.Black,
-                Padding = new Thickness(8, 4, 8, 4),
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-            btnHighlight.Click += async (s, e) =>
-            {
-                if (_activeTab != null && _currentlySelectedWords.Count > 0)
-                {
-                    try
-                    {
-                        string tempOut = Path.Combine(Path.GetDirectoryName(_activeTab.FilePath)!,
-                            Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_grifado.pdf");
-
-                        var pdfRects = _currentlySelectedWords.Select(w => w.PdfBounds).ToList();
-                        _editingService.AddHighlightRectangles(
-                            _activeTab.FilePath,
-                            tempOut,
-                            pageIndex + 1,
-                            pdfRects,
-                            XColor.FromArgb(250, 204, 21)
-                        );
-
-                        _activeTab.Document?.Dispose();
-                        _activeTab.FilePath = tempOut;
-                        _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
-                        await RenderAllPagesForTab(_activeTab);
-                        DisplayActivePages();
-                        TxtTitle.Text = _activeTab.FileName;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(this, $"Erro ao grifar seleção:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-                ClearActiveSelection();
-            };
-
-            sp.Children.Add(btnCopy);
-            sp.Children.Add(btnHighlight);
-            toolbar.Child = sp;
-
-            Canvas.SetLeft(toolbar, Math.Min(pos.X + 4, interactionCanvas.ActualWidth - 160));
-            Canvas.SetTop(toolbar, Math.Min(pos.Y + 4, interactionCanvas.ActualHeight - 40));
-
-            interactionCanvas.Children.Add(toolbar);
-            _activeSelectionToolbar = toolbar;
-        }
-
-        private void RemoveSelectionFloatingToolbar()
-        {
-            if (_activeSelectionToolbar != null && _activeSelectionToolbar.Parent is Canvas c)
-            {
-                c.Children.Remove(_activeSelectionToolbar);
-                _activeSelectionToolbar = null;
-            }
-        }
-
-        private void ClearActiveSelection()
-        {
-            RemoveSelectionFloatingToolbar();
-            _currentlySelectedWords.Clear();
-            if (_activeTab != null) _activeTab.CurrentlySelectedText = string.Empty;
-
-            if (_activeSelectionCanvas != null)
-            {
-                _activeSelectionCanvas.Children.Clear();
-                _activeSelectionCanvas = null;
-            }
-        }
-
-        private void SpawnInPlaceTextBox(Canvas canvas, int pageIndex, System.Windows.Point pos)
-        {
-            RemoveInPlaceBox();
-
-            var container = new Border
-            {
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
-                BorderThickness = new Thickness(1.5),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(8),
-                Effect = new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    Color = Colors.Black,
-                    Opacity = 0.5,
-                    BlurRadius = 12,
-                    ShadowDepth = 4
-                }
-            };
-
-            var mainPanel = new StackPanel { Width = 280 };
-
-            var txtInput = new TextBox
-            {
-                AcceptsReturn = true,
-                TextWrapping = TextWrapping.Wrap,
-                MinHeight = 50,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F172A")),
-                Foreground = Brushes.White,
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
-                Padding = new Thickness(6),
-                FontSize = 13,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-
-            XColor selectedColor = XColors.Black;
-
-            var toolbar = new Grid();
-            toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(85) });
-            toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var comboSize = new ComboBox { SelectedIndex = 1, Height = 28, FontSize = 11.5, Margin = new Thickness(0, 0, 6, 0) };
-            comboSize.Items.Add("10 pt");
-            comboSize.Items.Add("14 pt");
-            comboSize.Items.Add("18 pt");
-            comboSize.Items.Add("24 pt");
-            comboSize.Items.Add("32 pt");
-
-            var colorPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            var btnWhite = new Button
-            {
-                Content = "⚪",
-                ToolTip = "Texto Branco",
-                Width = 26,
-                Height = 26,
-                Margin = new Thickness(1, 0, 2, 0),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-            btnWhite.Click += (s, e) =>
-            {
-                selectedColor = XColors.White;
-                txtInput.Foreground = Brushes.White;
-            };
-
-            var btnBlack = new Button
-            {
-                Content = "⚫",
-                ToolTip = "Texto Preto",
-                Width = 26,
-                Height = 26,
-                Margin = new Thickness(1, 0, 2, 0),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-            btnBlack.Click += (s, e) =>
-            {
-                selectedColor = XColors.Black;
-                txtInput.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
-            };
-
-            var btnRed = new Button
-            {
-                Content = "🔴",
-                ToolTip = "Texto Vermelho",
-                Width = 26,
-                Height = 26,
-                Margin = new Thickness(1, 0, 2, 0),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-            btnRed.Click += (s, e) =>
-            {
-                selectedColor = XColors.Red;
-                txtInput.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
-            };
-
-            colorPanel.Children.Add(btnWhite);
-            colorPanel.Children.Add(btnBlack);
-            colorPanel.Children.Add(btnRed);
-
-            var actionPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-            var btnApply = new Button
-            {
-                Content = "✓",
-                ToolTip = "Gravar Texto no PDF",
-                Width = 28,
-                Height = 28,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),
-                Foreground = Brushes.White,
-                FontWeight = FontWeights.Bold,
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand,
-                Margin = new Thickness(0, 0, 4, 0)
-            };
-
-            var btnCancel = new Button
-            {
-                Content = "✕",
-                ToolTip = "Cancelar",
-                Width = 28,
-                Height = 28,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
-                Foreground = Brushes.White,
-                FontWeight = FontWeights.Bold,
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand
-            };
-
-            actionPanel.Children.Add(btnApply);
-            actionPanel.Children.Add(btnCancel);
-
-            Grid.SetColumn(comboSize, 0);
-            Grid.SetColumn(colorPanel, 1);
-            Grid.SetColumn(actionPanel, 2);
-
-            toolbar.Children.Add(comboSize);
-            toolbar.Children.Add(colorPanel);
-            toolbar.Children.Add(actionPanel);
-
-            mainPanel.Children.Add(txtInput);
-            mainPanel.Children.Add(toolbar);
-            container.Child = mainPanel;
-
-            Canvas.SetLeft(container, Math.Min(pos.X, canvas.ActualWidth - 300));
-            Canvas.SetTop(container, Math.Min(pos.Y, canvas.ActualHeight - 110));
-
-            canvas.Children.Add(container);
-            _activeInPlaceBox = container;
-            txtInput.Focus();
-
-            btnCancel.Click += (s, e) => RemoveInPlaceBox();
-
-            btnApply.Click += async (s, e) =>
-            {
-                if (string.IsNullOrWhiteSpace(txtInput.Text) || _activeTab == null)
-                {
-                    RemoveInPlaceBox();
-                    return;
-                }
-
-                double fontSize = comboSize.SelectedIndex switch
-                {
-                    0 => 10,
-                    1 => 14,
-                    2 => 18,
-                    3 => 24,
-                    4 => 32,
-                    _ => 14
-                };
-
-                using var pdfDoc = PdfReader.Open(_activeTab.FilePath, PdfDocumentOpenMode.Import);
-                var page = pdfDoc.Pages[pageIndex];
-                double scale = page.Width.Point / canvas.ActualWidth;
-
-                double pdfX = pos.X * scale;
-                double pdfY = pos.Y * scale;
-
                 try
                 {
-                    string tempOut = Path.Combine(Path.GetDirectoryName(_activeTab.FilePath)!,
-                        Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_editado.pdf");
+                    var saveDialog = new SaveFileDialog
+                    {
+                        Filter = "Arquivo PDF (*.pdf)|*.pdf",
+                        DefaultExt = "pdf",
+                        FileName = Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_destacado.pdf",
+                        Title = "Salvar PDF com Destaque"
+                    };
 
-                    _editingService.InsertText(
-                        _activeTab.FilePath,
-                        tempOut,
-                        pageIndex + 1,
-                        txtInput.Text,
-                        pdfX,
-                        pdfY,
-                        fontSize,
-                        selectedColor
-                    );
+                    if (saveDialog.ShowDialog(this) == true)
+                    {
+                        _editingService.AddHighlight(
+                            _activeTab.FilePath,
+                            saveDialog.FileName,
+                            dialog.PageNumber,
+                            dialog.PosX,
+                            dialog.PosY,
+                            dialog.RectWidth,
+                            dialog.RectHeight,
+                            dialog.HighlightColor
+                        );
 
-                    RemoveInPlaceBox();
-
-                    _activeTab.Document?.Dispose();
-                    _activeTab.FilePath = tempOut;
-                    _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
-                    await RenderAllPagesForTab(_activeTab);
-                    DisplayActivePages();
-                    TxtTitle.Text = _activeTab.FileName;
+                        OpenTab(saveDialog.FileName);
+                        MessageBox.Show(this, "Destaque aplicado com sucesso!", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, $"Erro ao inserir texto no PDF:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(this, $"Erro ao aplicar destaque no PDF:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-            };
-        }
-
-        private void RemoveInPlaceBox()
-        {
-            if (_activeInPlaceBox != null && _activeInPlaceBox.Parent is Canvas c)
-            {
-                c.Children.Remove(_activeInPlaceBox);
-                _activeInPlaceBox = null;
             }
         }
-
-        #endregion
-
-        #region Other Editing Tools Handlers
 
         private void BtnToolSignature_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null || _activeTab.Document == null)
-            {
-                MessageBox.Show(this, "Abra um documento PDF primeiro para assinar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+            if (_activeTab == null) return;
 
             var dialog = new SignatureDialog(_activeTab.TotalPages, 1) { Owner = this };
 
@@ -1082,11 +404,7 @@ namespace FtPdf
 
         private void BtnToolSplit_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null || _activeTab.Document == null)
-            {
-                MessageBox.Show(this, "Abra um documento PDF primeiro para extrair páginas.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+            if (_activeTab == null) return;
 
             var dialog = new SplitPdfDialog(_activeTab.TotalPages, 1) { Owner = this };
 
@@ -1126,9 +444,9 @@ namespace FtPdf
             }
         }
 
-        private async void BtnToolRotate_Click(object sender, RoutedEventArgs e)
+        private void BtnToolRotate_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null || _activeTab.Document == null) return;
+            if (_activeTab == null) return;
 
             try
             {
@@ -1137,12 +455,7 @@ namespace FtPdf
 
                 _editingService.RotatePages(_activeTab.FilePath, tempOut, Enumerable.Range(1, _activeTab.TotalPages), 90);
 
-                _activeTab.Document.Dispose();
-                _activeTab.FilePath = tempOut;
-                _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
-                await RenderAllPagesForTab(_activeTab);
-                DisplayActivePages();
-                TxtTitle.Text = _activeTab.FileName;
+                OpenTab(tempOut);
             }
             catch (Exception ex)
             {
@@ -1319,14 +632,11 @@ namespace FtPdf
         {
             try
             {
-                string textToCopy = !string.IsNullOrEmpty(_activeTab?.CurrentlySelectedText) 
-                    ? _activeTab.CurrentlySelectedText 
-                    : (_activeTab?.Extraction != null ? _activeTab.Extraction.FormattedText : TxtEditor.Text);
-
+                string textToCopy = _activeTab?.Extraction != null ? _activeTab.Extraction.FormattedText : TxtEditor.Text;
                 if (!string.IsNullOrEmpty(textToCopy))
                 {
                     Clipboard.SetText(textToCopy);
-                    MessageBox.Show(this, "Texto copiado para a Área de Transferência com sucesso!", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, "Conteúdo do PDF copiado para a Área de Transferência com sucesso!", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
@@ -1392,7 +702,7 @@ namespace FtPdf
             }
         }
 
-        private void TxtEditor_TextChanged(object sender, TextChangedEventArgs e) => UpdateEditorStats();
+        private void TxtEditor_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEditorStats();
 
         private void UpdateEditorStats()
         {
