@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows;
+using FtPdf.Models;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
@@ -13,7 +15,10 @@ namespace FtPdf.Services
         [System.Runtime.InteropServices.DllImport("gdi32.dll")]
         private static extern bool DeleteObject(IntPtr hObject);
 
-        public static System.Windows.Media.Imaging.BitmapSource RenderPageToBitmapSource(PdfiumViewer.PdfDocument doc, int pageIndex, int dpi = 150)
+        /// <summary>
+        /// Renders a PDF page to a high-resolution 300 DPI BitmapSource for crisp, print-quality display.
+        /// </summary>
+        public static System.Windows.Media.Imaging.BitmapSource RenderPageToBitmapSource(PdfiumViewer.PdfDocument doc, int pageIndex, int dpi = 300)
         {
             using var img = doc.Render(pageIndex, dpi, dpi, true);
             using var bmp = new System.Drawing.Bitmap(img);
@@ -32,6 +37,56 @@ namespace FtPdf.Services
             {
                 DeleteObject(hBitmap);
             }
+        }
+
+        /// <summary>
+        /// Extracts word-level coordinates and text for interactive on-screen text selection.
+        /// </summary>
+        public List<PageTextData> ExtractTextLayers(string filePath, double displayWidth)
+        {
+            var result = new List<PageTextData>();
+            if (!File.Exists(filePath)) return result;
+
+            try
+            {
+                using var document = UglyToad.PdfPig.PdfDocument.Open(filePath);
+                for (int i = 1; i <= document.NumberOfPages; i++)
+                {
+                    var page = document.GetPage(i);
+                    double scale = displayWidth / page.Width;
+
+                    var pageData = new PageTextData
+                    {
+                        PageNumber = i,
+                        PageWidth = page.Width,
+                        PageHeight = page.Height
+                    };
+
+                    foreach (var word in page.GetWords())
+                    {
+                        // Convert PDF bottom-left coordinates to top-left display coordinates
+                        double wpfX = word.BoundingBox.Left * scale;
+                        double wpfY = (page.Height - word.BoundingBox.Top) * scale;
+                        double wpfW = Math.Max(2, word.BoundingBox.Width * scale);
+                        double wpfH = Math.Max(4, word.BoundingBox.Height * scale);
+
+                        pageData.Words.Add(new PageWordItem
+                        {
+                            Text = word.Text,
+                            DisplayBounds = new Rect(wpfX, wpfY, wpfW, wpfH),
+                            PdfBounds = new Rect(word.BoundingBox.Left, page.Height - word.BoundingBox.Top, word.BoundingBox.Width, word.BoundingBox.Height)
+                        });
+                    }
+
+                    result.Add(pageData);
+                }
+            }
+            catch
+            {
+                // Fallback gracefully if font encoding or stream error occurs
+            }
+
+            return result;
         }
 
         public void InsertText(string sourcePath, string outputPath, int pageNumber, string text, double x, double y, double fontSize, XColor color)
@@ -66,6 +121,11 @@ namespace FtPdf.Services
 
         public void AddHighlight(string sourcePath, string outputPath, int pageNumber, double x, double y, double width, double height, XColor highlightColor)
         {
+            AddHighlightRectangles(sourcePath, outputPath, pageNumber, new[] { new Rect(x, y, width, height) }, highlightColor);
+        }
+
+        public void AddHighlightRectangles(string sourcePath, string outputPath, int pageNumber, IEnumerable<Rect> rects, XColor highlightColor)
+        {
             using var document = PdfReader.Open(sourcePath, PdfDocumentOpenMode.Modify);
             if (pageNumber < 1 || pageNumber > document.PageCount)
                 throw new ArgumentOutOfRangeException(nameof(pageNumber), "Número de página inválido.");
@@ -73,11 +133,14 @@ namespace FtPdf.Services
             var page = document.Pages[pageNumber - 1];
             using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
             
-            // Semi-transparent highlight brush
-            var colorWithAlpha = XColor.FromArgb(120, highlightColor.R, highlightColor.G, highlightColor.B);
+            var colorWithAlpha = XColor.FromArgb(115, highlightColor.R, highlightColor.G, highlightColor.B);
             var brush = new XSolidBrush(colorWithAlpha);
 
-            gfx.DrawRectangle(brush, x, y, width, height);
+            foreach (var r in rects)
+            {
+                gfx.DrawRectangle(brush, r.X, r.Y, r.Width, r.Height);
+            }
+
             document.Save(outputPath);
         }
 

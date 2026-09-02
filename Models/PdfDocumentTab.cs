@@ -15,6 +15,8 @@ namespace FtPdf.Models
         public PdfDocument? Document { get; set; }
         public ExtractionResult? Extraction { get; set; }
         public List<BitmapSource> RenderedPages { get; set; } = new();
+        public List<PageTextData> TextPages { get; set; } = new();
+        public string CurrentlySelectedText { get; set; } = string.Empty;
         public int TotalPages => Document?.PageCount ?? 0;
         public int CurrentPage { get; set; } = 1;
 
@@ -23,6 +25,7 @@ namespace FtPdf.Models
             Document?.Dispose();
             Document = null;
             RenderedPages.Clear();
+            TextPages.Clear();
         }
     }
 }

@@ -5,7 +5,8 @@
         Height="860" Width="1440"
         WindowStartupLocation="CenterScreen"
         Background="#0F172A"
-        Foreground="#F8FAFC">
+        Foreground="#F8FAFC"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
 
     <Window.InputBindings>
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenFileCommand}" />

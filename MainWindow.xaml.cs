@@ -50,7 +50,15 @@ namespace FtPdf
         private bool _isNotepadOpen = false;
         private ActiveToolMode _currentToolMode = ActiveToolMode.None;
 
-        // Highlighter dragging state
+        // Text Selection State
+        private bool _isTextSelecting = false;
+        private System.Windows.Point _selectionStart;
+        private System.Windows.Shapes.Rectangle? _selectionMarquee;
+        private readonly List<PageWordItem> _currentlySelectedWords = new();
+        private Canvas? _activeSelectionCanvas;
+        private Border? _activeSelectionToolbar;
+
+        // Highlighter Dragging State
         private bool _isHighlightDragging = false;
         private System.Windows.Point _highlightStartPoint;
         private System.Windows.Shapes.Rectangle? _currentHighlightRect;
@@ -61,6 +69,19 @@ namespace FtPdf
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (!string.IsNullOrEmpty(_activeTab?.CurrentlySelectedText))
+                {
+                    Clipboard.SetText(_activeTab.CurrentlySelectedText);
+                    e.Handled = true;
+                    MessageBox.Show(this, $"Texto copiado:\n\"{_activeTab.CurrentlySelectedText}\"", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
         }
 
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
@@ -97,7 +118,6 @@ namespace FtPdf
                     return;
                 }
 
-                // If already open in a tab, just activate it
                 var existing = _tabs.FirstOrDefault(t => t.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
@@ -111,11 +131,18 @@ namespace FtPdf
                     Document = PdfiumViewer.PdfDocument.Load(filePath)
                 };
 
-                // Render pages
+                // Render pages at crystal clear 300 DPI
                 await RenderAllPagesForTab(tab);
 
                 _tabs.Add(tab);
                 SetActiveTab(tab);
+
+                // Extract word coordinates for text selection in background
+                _ = Task.Run(() =>
+                {
+                    var textPages = _editingService.ExtractTextLayers(filePath, 820.0);
+                    Dispatcher.Invoke(() => tab.TextPages = textPages);
+                });
 
                 // Run extraction & integrity analysis in background
                 _ = Task.Run(() =>
@@ -146,7 +173,8 @@ namespace FtPdf
             for (int i = 0; i < count; i++)
             {
                 int pageIndex = i;
-                var bmpSource = await Task.Run(() => PdfEditingService.RenderPageToBitmapSource(tab.Document, pageIndex, 150));
+                // High-resolution 300 DPI for crystal clear vector-sharp text
+                var bmpSource = await Task.Run(() => PdfEditingService.RenderPageToBitmapSource(tab.Document, pageIndex, 300));
                 tab.RenderedPages.Add(bmpSource);
             }
         }
@@ -283,12 +311,13 @@ namespace FtPdf
             }
         }
 
-        #region Page Display & Interactive Canvas
+        #region Page Display & Interactive Text Selection Layer
 
         private void DisplayActivePages()
         {
             PdfPagesContainer.Children.Clear();
             RemoveInPlaceBox();
+            ClearActiveSelection();
 
             if (_activeTab == null || _activeTab.RenderedPages.Count == 0) return;
 
@@ -309,7 +338,7 @@ namespace FtPdf
                     Background = Brushes.White
                 };
 
-                // Drop shadow / border around page
+                // Drop shadow & border
                 var border = new Border
                 {
                     BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
@@ -324,6 +353,7 @@ namespace FtPdf
                     }
                 };
 
+                // Crisp image with HighQuality bilinear/bicubic scaling
                 var img = new Image
                 {
                     Source = bmp,
@@ -331,27 +361,38 @@ namespace FtPdf
                     Height = displayHeight,
                     Stretch = Stretch.Uniform
                 };
+                RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+                RenderOptions.SetEdgeMode(img, EdgeMode.Aliased);
 
-                // Interactive Overlay Canvas
-                var canvas = new Canvas
+                // Layer 1: Selection Canvas (where blue boxes for selected text are drawn)
+                var selectionCanvas = new Canvas
                 {
                     Width = displayWidth,
                     Height = displayHeight,
                     Background = Brushes.Transparent,
-                    Tag = pageIndex // Stores the page index
+                    IsHitTestVisible = false
                 };
 
-                // Update cursor based on tool
-                UpdateCanvasCursor(canvas);
+                // Layer 2: Interaction Canvas (receives mouse clicks, drags, and in-place tools)
+                var interactionCanvas = new Canvas
+                {
+                    Width = displayWidth,
+                    Height = displayHeight,
+                    Background = Brushes.Transparent,
+                    Tag = pageIndex
+                };
 
-                // Mouse interaction on Canvas
-                canvas.MouseLeftButtonDown += (s, e) => OnCanvasMouseDown(canvas, pageIndex, e);
-                canvas.MouseMove += (s, e) => OnCanvasMouseMove(canvas, e);
-                canvas.MouseLeftButtonUp += (s, e) => OnCanvasMouseUp(canvas, pageIndex, e);
+                UpdateCanvasCursor(interactionCanvas);
+
+                // Mouse handlers for Text Selection, Highlighter and Text Inserter
+                interactionCanvas.MouseLeftButtonDown += (s, e) => OnCanvasMouseDown(interactionCanvas, selectionCanvas, pageIndex, e);
+                interactionCanvas.MouseMove += (s, e) => OnCanvasMouseMove(interactionCanvas, selectionCanvas, pageIndex, e);
+                interactionCanvas.MouseLeftButtonUp += (s, e) => OnCanvasMouseUp(interactionCanvas, selectionCanvas, pageIndex, e);
 
                 border.Child = img;
                 pageGrid.Children.Add(border);
-                pageGrid.Children.Add(canvas);
+                pageGrid.Children.Add(selectionCanvas);
+                pageGrid.Children.Add(interactionCanvas);
 
                 PdfPagesContainer.Children.Add(pageGrid);
             }
@@ -362,13 +403,11 @@ namespace FtPdf
             switch (_currentToolMode)
             {
                 case ActiveToolMode.InsertText:
-                    canvas.Cursor = Cursors.Cross;
-                    break;
                 case ActiveToolMode.Highlight:
                     canvas.Cursor = Cursors.Cross;
                     break;
                 default:
-                    canvas.Cursor = Cursors.IBeam;
+                    canvas.Cursor = Cursors.IBeam; // Selectable text cursor
                     break;
             }
         }
@@ -381,7 +420,7 @@ namespace FtPdf
                 {
                     foreach (var elem in g.Children)
                     {
-                        if (elem is Canvas c)
+                        if (elem is Canvas c && c.IsHitTestVisible)
                         {
                             UpdateCanvasCursor(c);
                         }
@@ -410,6 +449,7 @@ namespace FtPdf
                 BarActiveToolHint.Visibility = Visibility.Visible;
                 BtnToolText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB"));
                 BtnToolHighlight.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+                ClearActiveSelection();
                 RefreshAllCanvasCursors();
             }
         }
@@ -430,6 +470,7 @@ namespace FtPdf
                 BarActiveToolHint.Visibility = Visibility.Visible;
                 BtnToolHighlight.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EAB308"));
                 BtnToolText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+                ClearActiveSelection();
                 RefreshAllCanvasCursors();
             }
         }
@@ -451,15 +492,15 @@ namespace FtPdf
 
         #endregion
 
-        #region In-Place Text Insertion Box
+        #region Canvas Interactions (Text Selection, Drag Highlight & In-Place Text)
 
-        private void OnCanvasMouseDown(Canvas canvas, int pageIndex, MouseButtonEventArgs e)
+        private void OnCanvasMouseDown(Canvas interactionCanvas, Canvas selectionCanvas, int pageIndex, MouseButtonEventArgs e)
         {
-            var pos = e.GetPosition(canvas);
+            var pos = e.GetPosition(interactionCanvas);
 
             if (_currentToolMode == ActiveToolMode.InsertText)
             {
-                SpawnInPlaceTextBox(canvas, pageIndex, pos);
+                SpawnInPlaceTextBox(interactionCanvas, pageIndex, pos);
             }
             else if (_currentToolMode == ActiveToolMode.Highlight)
             {
@@ -468,23 +509,42 @@ namespace FtPdf
 
                 _currentHighlightRect = new System.Windows.Shapes.Rectangle
                 {
-                    Fill = new SolidColorBrush(Color.FromArgb(100, 250, 204, 21)), // Yellow highlight #FACC15
+                    Fill = new SolidColorBrush(Color.FromArgb(100, 250, 204, 21)), // Yellow highlight
                     Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EAB308")),
                     StrokeThickness = 1
                 };
 
                 Canvas.SetLeft(_currentHighlightRect, pos.X);
                 Canvas.SetTop(_currentHighlightRect, pos.Y);
-                canvas.Children.Add(_currentHighlightRect);
-                canvas.CaptureMouse();
+                interactionCanvas.Children.Add(_currentHighlightRect);
+                interactionCanvas.CaptureMouse();
+            }
+            else // Normal Reading Mode: Interactive Text Selection
+            {
+                ClearActiveSelection();
+                _isTextSelecting = true;
+                _selectionStart = pos;
+                _activeSelectionCanvas = selectionCanvas;
+
+                _selectionMarquee = new System.Windows.Shapes.Rectangle
+                {
+                    Fill = new SolidColorBrush(Color.FromArgb(40, 59, 130, 246)),
+                    Stroke = new SolidColorBrush(Color.FromArgb(120, 59, 130, 246)),
+                    StrokeThickness = 1
+                };
+                Canvas.SetLeft(_selectionMarquee, pos.X);
+                Canvas.SetTop(_selectionMarquee, pos.Y);
+                selectionCanvas.Children.Add(_selectionMarquee);
+                interactionCanvas.CaptureMouse();
             }
         }
 
-        private void OnCanvasMouseMove(Canvas canvas, System.Windows.Input.MouseEventArgs e)
+        private void OnCanvasMouseMove(Canvas interactionCanvas, Canvas selectionCanvas, int pageIndex, System.Windows.Input.MouseEventArgs e)
         {
+            var cur = e.GetPosition(interactionCanvas);
+
             if (_isHighlightDragging && _currentHighlightRect != null)
             {
-                var cur = e.GetPosition(canvas);
                 double x = Math.Min(_highlightStartPoint.X, cur.X);
                 double y = Math.Min(_highlightStartPoint.Y, cur.Y);
                 double w = Math.Abs(cur.X - _highlightStartPoint.X);
@@ -495,13 +555,61 @@ namespace FtPdf
                 _currentHighlightRect.Width = Math.Max(1, w);
                 _currentHighlightRect.Height = Math.Max(1, h);
             }
+            else if (_isTextSelecting && _selectionMarquee != null && _activeTab != null)
+            {
+                double x = Math.Min(_selectionStart.X, cur.X);
+                double y = Math.Min(_selectionStart.Y, cur.Y);
+                double w = Math.Abs(cur.X - _selectionStart.X);
+                double h = Math.Abs(cur.Y - _selectionStart.Y);
+
+                Canvas.SetLeft(_selectionMarquee, x);
+                Canvas.SetTop(_selectionMarquee, y);
+                _selectionMarquee.Width = Math.Max(1, w);
+                _selectionMarquee.Height = Math.Max(1, h);
+
+                var selRect = new Rect(x, y, w, h);
+
+                // Highlight intersecting words in real time
+                if (_activeTab.TextPages.Count > pageIndex)
+                {
+                    var pageData = _activeTab.TextPages[pageIndex];
+                    _currentlySelectedWords.Clear();
+
+                    // Remove existing word selection boxes (keep only marquee)
+                    for (int i = selectionCanvas.Children.Count - 1; i >= 0; i--)
+                    {
+                        if (selectionCanvas.Children[i] != _selectionMarquee)
+                        {
+                            selectionCanvas.Children.RemoveAt(i);
+                        }
+                    }
+
+                    foreach (var word in pageData.Words)
+                    {
+                        if (selRect.IntersectsWith(word.DisplayBounds))
+                        {
+                            _currentlySelectedWords.Add(word);
+
+                            var wordBox = new System.Windows.Shapes.Rectangle
+                            {
+                                Fill = new SolidColorBrush(Color.FromArgb(90, 59, 130, 246)),
+                                Width = word.DisplayBounds.Width,
+                                Height = word.DisplayBounds.Height
+                            };
+                            Canvas.SetLeft(wordBox, word.DisplayBounds.Left);
+                            Canvas.SetTop(wordBox, word.DisplayBounds.Top);
+                            selectionCanvas.Children.Add(wordBox);
+                        }
+                    }
+                }
+            }
         }
 
-        private async void OnCanvasMouseUp(Canvas canvas, int pageIndex, MouseButtonEventArgs e)
+        private async void OnCanvasMouseUp(Canvas interactionCanvas, Canvas selectionCanvas, int pageIndex, MouseButtonEventArgs e)
         {
             if (_isHighlightDragging && _currentHighlightRect != null && _activeTab != null)
             {
-                canvas.ReleaseMouseCapture();
+                interactionCanvas.ReleaseMouseCapture();
                 _isHighlightDragging = false;
 
                 double x = Canvas.GetLeft(_currentHighlightRect);
@@ -509,15 +617,14 @@ namespace FtPdf
                 double w = _currentHighlightRect.Width;
                 double h = _currentHighlightRect.Height;
 
-                canvas.Children.Remove(_currentHighlightRect);
+                interactionCanvas.Children.Remove(_currentHighlightRect);
                 _currentHighlightRect = null;
 
                 if (w > 5 && h > 4)
                 {
-                    // Convert canvas pixels to PDF points
                     using var pdfDoc = PdfReader.Open(_activeTab.FilePath, PdfDocumentOpenMode.Import);
                     var page = pdfDoc.Pages[pageIndex];
-                    double scale = page.Width.Point / canvas.ActualWidth;
+                    double scale = page.Width.Point / interactionCanvas.ActualWidth;
 
                     double pdfX = x * scale;
                     double pdfY = y * scale;
@@ -537,10 +644,9 @@ namespace FtPdf
                             pdfY,
                             pdfW,
                             pdfH,
-                            XColor.FromArgb(250, 204, 21) // Yellow
+                            XColor.FromArgb(250, 204, 21)
                         );
 
-                        // Reload tab with modified file
                         _activeTab.Document?.Dispose();
                         _activeTab.FilePath = tempOut;
                         _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
@@ -553,6 +659,149 @@ namespace FtPdf
                         MessageBox.Show(this, $"Erro ao aplicar destaque:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
+            }
+            else if (_isTextSelecting && _activeTab != null)
+            {
+                interactionCanvas.ReleaseMouseCapture();
+                _isTextSelecting = false;
+
+                if (_selectionMarquee != null)
+                {
+                    selectionCanvas.Children.Remove(_selectionMarquee);
+                    _selectionMarquee = null;
+                }
+
+                if (_currentlySelectedWords.Count > 0)
+                {
+                    _activeTab.CurrentlySelectedText = string.Join(" ", _currentlySelectedWords.Select(w => w.Text));
+                    var lastWord = _currentlySelectedWords.Last();
+                    ShowSelectionFloatingToolbar(interactionCanvas, pageIndex, new System.Windows.Point(lastWord.DisplayBounds.Right, lastWord.DisplayBounds.Bottom));
+                }
+                else
+                {
+                    ClearActiveSelection();
+                }
+            }
+        }
+
+        private void ShowSelectionFloatingToolbar(Canvas interactionCanvas, int pageIndex, System.Windows.Point pos)
+        {
+            RemoveSelectionFloatingToolbar();
+
+            var toolbar = new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(4),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Black,
+                    Opacity = 0.4,
+                    BlurRadius = 8,
+                    ShadowDepth = 2
+                }
+            };
+
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+
+            var btnCopy = new Button
+            {
+                Content = "📋 Copiar",
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
+                Foreground = Brushes.White,
+                Padding = new Thickness(8, 4, 8, 4),
+                Margin = new Thickness(0, 0, 4, 0),
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand
+            };
+            btnCopy.Click += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(_activeTab?.CurrentlySelectedText))
+                {
+                    Clipboard.SetText(_activeTab.CurrentlySelectedText);
+                    MessageBox.Show(this, "Texto copiado para a Área de Transferência com sucesso!", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                ClearActiveSelection();
+            };
+
+            var btnHighlight = new Button
+            {
+                Content = "🖍️ Grifar",
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EAB308")),
+                Foreground = Brushes.Black,
+                Padding = new Thickness(8, 4, 8, 4),
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand
+            };
+            btnHighlight.Click += async (s, e) =>
+            {
+                if (_activeTab != null && _currentlySelectedWords.Count > 0)
+                {
+                    try
+                    {
+                        string tempOut = Path.Combine(Path.GetDirectoryName(_activeTab.FilePath)!,
+                            Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_grifado.pdf");
+
+                        var pdfRects = _currentlySelectedWords.Select(w => w.PdfBounds).ToList();
+                        _editingService.AddHighlightRectangles(
+                            _activeTab.FilePath,
+                            tempOut,
+                            pageIndex + 1,
+                            pdfRects,
+                            XColor.FromArgb(250, 204, 21)
+                        );
+
+                        _activeTab.Document?.Dispose();
+                        _activeTab.FilePath = tempOut;
+                        _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
+                        await RenderAllPagesForTab(_activeTab);
+                        DisplayActivePages();
+                        TxtTitle.Text = _activeTab.FileName;
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, $"Erro ao grifar seleção:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                ClearActiveSelection();
+            };
+
+            sp.Children.Add(btnCopy);
+            sp.Children.Add(btnHighlight);
+            toolbar.Child = sp;
+
+            Canvas.SetLeft(toolbar, Math.Min(pos.X + 4, interactionCanvas.ActualWidth - 160));
+            Canvas.SetTop(toolbar, Math.Min(pos.Y + 4, interactionCanvas.ActualHeight - 40));
+
+            interactionCanvas.Children.Add(toolbar);
+            _activeSelectionToolbar = toolbar;
+        }
+
+        private void RemoveSelectionFloatingToolbar()
+        {
+            if (_activeSelectionToolbar != null && _activeSelectionToolbar.Parent is Canvas c)
+            {
+                c.Children.Remove(_activeSelectionToolbar);
+                _activeSelectionToolbar = null;
+            }
+        }
+
+        private void ClearActiveSelection()
+        {
+            RemoveSelectionFloatingToolbar();
+            _currentlySelectedWords.Clear();
+            if (_activeTab != null) _activeTab.CurrentlySelectedText = string.Empty;
+
+            if (_activeSelectionCanvas != null)
+            {
+                _activeSelectionCanvas.Children.Clear();
+                _activeSelectionCanvas = null;
             }
         }
 
@@ -591,7 +840,6 @@ namespace FtPdf
                 Margin = new Thickness(0, 0, 0, 8)
             };
 
-            // Selected color state: Default is Black (0) or Red (1) or White (2)
             XColor selectedColor = XColors.Black;
 
             var toolbar = new Grid();
@@ -599,7 +847,6 @@ namespace FtPdf
             toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            // Font size selector
             var comboSize = new ComboBox { SelectedIndex = 1, Height = 28, FontSize = 11.5, Margin = new Thickness(0, 0, 6, 0) };
             comboSize.Items.Add("10 pt");
             comboSize.Items.Add("14 pt");
@@ -607,7 +854,6 @@ namespace FtPdf
             comboSize.Items.Add("24 pt");
             comboSize.Items.Add("32 pt");
 
-            // Color buttons: White, Black, Red
             var colorPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
             var btnWhite = new Button
@@ -665,7 +911,6 @@ namespace FtPdf
             colorPanel.Children.Add(btnBlack);
             colorPanel.Children.Add(btnRed);
 
-            // Apply & Cancel buttons
             var actionPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
             var btnApply = new Button
@@ -710,7 +955,6 @@ namespace FtPdf
             mainPanel.Children.Add(toolbar);
             container.Child = mainPanel;
 
-            // Placement on canvas
             Canvas.SetLeft(container, Math.Min(pos.X, canvas.ActualWidth - 300));
             Canvas.SetTop(container, Math.Min(pos.Y, canvas.ActualHeight - 110));
 
@@ -738,7 +982,6 @@ namespace FtPdf
                     _ => 14
                 };
 
-                // Convert canvas coordinates to PDF points
                 using var pdfDoc = PdfReader.Open(_activeTab.FilePath, PdfDocumentOpenMode.Import);
                 var page = pdfDoc.Pages[pageIndex];
                 double scale = page.Width.Point / canvas.ActualWidth;
@@ -764,7 +1007,6 @@ namespace FtPdf
 
                     RemoveInPlaceBox();
 
-                    // Reload tab with modified file
                     _activeTab.Document?.Dispose();
                     _activeTab.FilePath = tempOut;
                     _activeTab.Document = PdfiumViewer.PdfDocument.Load(tempOut);
@@ -1077,11 +1319,18 @@ namespace FtPdf
         {
             try
             {
-                string textToCopy = _activeTab?.Extraction != null ? _activeTab.Extraction.FormattedText : TxtEditor.Text;
+                string textToCopy = !string.IsNullOrEmpty(_activeTab?.CurrentlySelectedText) 
+                    ? _activeTab.CurrentlySelectedText 
+                    : (_activeTab?.Extraction != null ? _activeTab.Extraction.FormattedText : TxtEditor.Text);
+
                 if (!string.IsNullOrEmpty(textToCopy))
                 {
                     Clipboard.SetText(textToCopy);
-                    MessageBox.Show(this, "Conteúdo do PDF copiado para a Área de Transferência com sucesso!", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, "Texto copiado para a Área de Transferência com sucesso!", "Copiado", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show(this, "Nenhum texto disponível para copiar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
