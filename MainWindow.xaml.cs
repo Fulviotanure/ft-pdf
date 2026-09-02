@@ -41,8 +41,37 @@ namespace FtPdf
         public MainWindow()
         {
             InitializeComponent();
+            StateChanged += MainWindow_StateChanged;
             InitializeViewerAsync();
         }
+
+        private void MainWindow_StateChanged(object? sender, EventArgs e)
+        {
+            if (BtnMaximize != null)
+            {
+                BtnMaximize.Content = WindowState == WindowState.Maximized ? "🗗" : "🗖";
+                BtnMaximize.ToolTip = WindowState == WindowState.Maximized ? "Restaurar" : "Maximizar";
+            }
+        }
+
+        #region Custom Integrated Window Chrome Controls (Min, Max, Close)
+
+        private void BtnMinimize_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void BtnMaximize_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = (WindowState == WindowState.Maximized) ? WindowState.Normal : WindowState.Maximized;
+        }
+
+        private void BtnCloseWindow_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        #endregion
 
         private async void InitializeViewerAsync()
         {
@@ -118,7 +147,6 @@ namespace FtPdf
                     return;
                 }
 
-                // If already open in a tab, just activate it
                 var existing = _tabs.FirstOrDefault(t => t.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
@@ -160,16 +188,11 @@ namespace FtPdf
             _activeTab = tab;
             UpdateTabsBar();
 
-            TxtTitle.Text = tab.FileName;
-            BadgeDocTitle.Visibility = Visibility.Visible;
-
             PanelEmptyState.Visibility = Visibility.Collapsed;
             PanelActiveContent.Visibility = Visibility.Visible;
-            BorderTabs.Visibility = Visibility.Visible;
-            BtnCloseFile.Visibility = Visibility.Visible;
-            BtnToggleNotepad.Visibility = Visibility.Visible;
             BtnQuickSave.Visibility = Visibility.Visible;
             BtnQuickCopy.Visibility = Visibility.Visible;
+            BtnToggleNotepad.Visibility = Visibility.Visible;
 
             // Load the original vector PDF file cleanly without native browser toolbars
             NavigateToPdf(tab.FilePath);
@@ -204,16 +227,13 @@ namespace FtPdf
         private void CloseAllDocuments()
         {
             _activeTab = null;
-            TxtTitle.Text = "Nenhum documento aberto";
-            BadgeDocTitle.Visibility = Visibility.Collapsed;
             PanelEmptyState.Visibility = Visibility.Visible;
             PanelActiveContent.Visibility = Visibility.Collapsed;
-            BorderTabs.Visibility = Visibility.Collapsed;
-            BtnCloseFile.Visibility = Visibility.Collapsed;
-            BtnToggleNotepad.Visibility = Visibility.Collapsed;
             BtnQuickSave.Visibility = Visibility.Collapsed;
             BtnQuickCopy.Visibility = Visibility.Collapsed;
+            BtnToggleNotepad.Visibility = Visibility.Collapsed;
             CloseNotepad();
+            UpdateTabsBar();
         }
 
         private void UpdateTabsBar()
@@ -227,13 +247,15 @@ namespace FtPdf
                 var tabBorder = new Border
                 {
                     Background = new SolidColorBrush(isActive 
-                        ? (Color)ColorConverter.ConvertFromString("#2563EB") 
-                        : (Color)ColorConverter.ConvertFromString("#1E293B")),
-                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
+                        ? (Color)ColorConverter.ConvertFromString("#1E293B") 
+                        : Colors.Transparent),
+                    BorderBrush = new SolidColorBrush(isActive 
+                        ? (Color)ColorConverter.ConvertFromString("#334155") 
+                        : Colors.Transparent),
                     BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(10, 4, 8, 4),
-                    Margin = new Thickness(0, 0, 6, 0),
+                    CornerRadius = new CornerRadius(5),
+                    Padding = new Thickness(8, 3, 6, 3),
+                    Margin = new Thickness(0, 0, 4, 0),
                     Cursor = Cursors.Hand
                 };
 
@@ -251,9 +273,9 @@ namespace FtPdf
                 {
                     Text = tab.FileName,
                     FontSize = 11.5,
-                    FontWeight = isActive ? FontWeights.Bold : FontWeights.Normal,
+                    FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
                     Foreground = new SolidColorBrush(isActive ? Colors.White : (Color)ColorConverter.ConvertFromString("#94A3B8")),
-                    MaxWidth = 180,
+                    MaxWidth = 160,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     VerticalAlignment = VerticalAlignment.Center
                 };
@@ -261,12 +283,12 @@ namespace FtPdf
                 var closeBtn = new Button
                 {
                     Content = "✕",
-                    FontSize = 10,
-                    Width = 18,
-                    Height = 18,
+                    FontSize = 9.5,
+                    Width = 16,
+                    Height = 16,
                     Margin = new Thickness(6, 0, 0, 0),
                     Background = Brushes.Transparent,
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                     BorderThickness = new Thickness(0),
                     Cursor = Cursors.Hand
                 };
@@ -291,7 +313,11 @@ namespace FtPdf
 
         private void BtnToolText_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null) return;
+            if (_activeTab == null)
+            {
+                MessageBox.Show(this, "Abra um arquivo PDF primeiro para inserir anotações.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             var dialog = new InsertTextDialog(_activeTab.TotalPages, 1) { Owner = this };
 
@@ -333,7 +359,11 @@ namespace FtPdf
 
         private void BtnToolHighlight_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null) return;
+            if (_activeTab == null)
+            {
+                MessageBox.Show(this, "Abra um arquivo PDF primeiro para adicionar destaques.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             var dialog = new HighlightDialog(_activeTab.TotalPages, 1) { Owner = this };
 
@@ -375,7 +405,11 @@ namespace FtPdf
 
         private void BtnToolSignature_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null) return;
+            if (_activeTab == null)
+            {
+                MessageBox.Show(this, "Abra um arquivo PDF primeiro para assinar.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             var dialog = new SignatureDialog(_activeTab.TotalPages, 1) { Owner = this };
 
@@ -417,7 +451,11 @@ namespace FtPdf
 
         private void BtnToolSplit_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null) return;
+            if (_activeTab == null)
+            {
+                MessageBox.Show(this, "Abra um arquivo PDF primeiro para extrair páginas.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             var dialog = new SplitPdfDialog(_activeTab.TotalPages, 1) { Owner = this };
 
@@ -459,7 +497,11 @@ namespace FtPdf
 
         private void BtnToolRotate_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTab == null) return;
+            if (_activeTab == null)
+            {
+                MessageBox.Show(this, "Abra um arquivo PDF primeiro para girar páginas.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             try
             {
@@ -604,8 +646,8 @@ namespace FtPdf
             ColNotepad.Width = new GridLength(0);
             PanelNotepad.Visibility = Visibility.Collapsed;
             SplitterBar.Visibility = Visibility.Collapsed;
-            BtnToggleNotepad.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
-            BtnToggleNotepad.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"));
+            BtnToggleNotepad.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+            BtnToggleNotepad.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FACC15"));
         }
 
         private void BtnCloseNotepad_Click(object sender, RoutedEventArgs e) => CloseNotepad();
@@ -722,11 +764,6 @@ namespace FtPdf
             int chars = TxtEditor.Text.Length;
             int words = TxtEditor.Text.Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
             TxtEditorStats.Text = $"Caracteres: {chars:N0} | Palavras: {words:N0}";
-        }
-
-        private void BtnCloseFile_Click(object sender, RoutedEventArgs e)
-        {
-            if (_activeTab != null) CloseTab(_activeTab);
         }
 
         #endregion
