@@ -1,0 +1,514 @@
+<Window x:Class="FtPdf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FT PDF - Leitor, Editor e Validação"
+        Height="860" Width="1440"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F172A"
+        Foreground="#F8FAFC">
+
+    <Window.InputBindings>
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenFileCommand}" />
+        <KeyBinding Key="W" Modifiers="Control" Command="{Binding CloseFileCommand}" />
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveFileCommand}" />
+    </Window.InputBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top Header / Toolbar -->
+            <RowDefinition Height="56" />
+            <!-- Document Tabs Strip (Visible when tabs are open) -->
+            <RowDefinition Height="Auto" />
+            <!-- Active Tool Hint Bar -->
+            <RowDefinition Height="Auto" />
+            <!-- Main Content Area -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Top Header Bar -->
+        <Border Grid.Row="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,0,1">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <!-- Left: Logo, Branding & Settings -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Center: Centered Document Title -->
+                    <ColumnDefinition Width="*" />
+                    <!-- Right: Quick Actions -->
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Section: Logo & Settings -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#26EF4444" CornerRadius="6" Padding="6" Margin="0,0,8,0">
+                        <TextBlock Text="PDF" FontWeight="Bold" FontSize="12" Foreground="#EF4444" />
+                    </Border>
+                    <TextBlock Text="FT PDF" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                    <!-- Settings Button -->
+                    <Button x:Name="BtnSettings" Content="⚙️ Configurações" Click="BtnSettings_Click"
+                            Background="#334155" Foreground="#CBD5E1" FontSize="12" FontWeight="Medium"
+                            Padding="10,6" BorderThickness="0" Cursor="Hand" ToolTip="Configurar programa padrão e atualizações">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6" /></Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+
+                <!-- Center Section: Centered Document Name -->
+                <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+                    <Border x:Name="BadgeDocTitle" Background="#131D31" BorderBrush="#334155" BorderThickness="1" 
+                            CornerRadius="6" Padding="14,6" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📄" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TxtTitle" Text="Nenhum documento aberto"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       Foreground="#F8FAFC" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="500" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right Section: Actions -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Quick Save Button -->
+                    <Button x:Name="BtnQuickSave" Content="💾 Salvar" Click="BtnQuickSave_Click"
+                            Background="#334155" Foreground="#F8FAFC" FontWeight="Medium"
+                            Padding="10,7" Margin="0,0,8,0" BorderThickness="0" Cursor="Hand"
+                            Visibility="Collapsed" ToolTip="Salvar cópia do arquivo PDF">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6" /></Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <!-- Quick Copy Button -->
+                    <Button x:Name="BtnQuickCopy" Content="📋 Copiar" Click="BtnQuickCopy_Click"
+                            Background="#334155" Foreground="#F8FAFC" FontWeight="Medium"
+                            Padding="10,7" Margin="0,0,8,0" BorderThickness="0" Cursor="Hand"
+                            Visibility="Collapsed" ToolTip="Copiar texto extraído para área de transferência">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6" /></Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <!-- Validate / Analysis Button -->
+                    <Button x:Name="BtnToggleNotepad" Content="🔍 Validar" Click="BtnToggleNotepad_Click"
+                            Background="#334155" Foreground="#F8FAFC" FontWeight="SemiBold"
+                            Padding="14,7" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                            Visibility="Collapsed" ToolTip="Abrir painel de validação, integridade e bloco de notas">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6" /></Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <!-- Open File Button -->
+                    <Button x:Name="BtnOpenFile" Content="Abrir Arquivo (Ctrl+O)" Click="BtnOpenFile_Click"
+                            Background="#3B82F6" Foreground="White" FontWeight="SemiBold"
+                            Padding="14,7" BorderThickness="0" Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6" /></Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <!-- Close File Button -->
+                    <Button x:Name="BtnCloseFile" Content="✕" Click="BtnCloseFile_Click"
+                            Width="30" Height="30" Margin="8,0,0,0"
+                            Background="Transparent" Foreground="#94A3B8" BorderThickness="0" 
+                            Cursor="Hand" Visibility="Collapsed" ToolTip="Fechar Documento Atual (Ctrl+W)" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Document Tabs Bar -->
+        <Border Grid.Row="1" x:Name="BorderTabs" Background="#0B132B" BorderBrush="#1E293B" BorderThickness="0,0,0,1" 
+                Visibility="Collapsed" Padding="6,4">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Dynamic Document Tabs -->
+                    <StackPanel x:Name="PanelTabs" Orientation="Horizontal" VerticalAlignment="Center" />
+
+                    <!-- Add New Tab Button -->
+                    <Button x:Name="BtnNewTab" Content="➕ Abrir Aba" Click="BtnOpenFile_Click"
+                            Background="#1E293B" Foreground="#94A3B8" FontSize="11.5" FontWeight="Medium"
+                            Padding="10,5" Margin="4,0,0,0" BorderThickness="0" Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6" /></Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Active Tool Notification / Hint Bar -->
+        <Border Grid.Row="2" x:Name="BarActiveToolHint" Background="#1E3A5F" BorderBrush="#3B82F6" BorderThickness="0,0,0,1" 
+                Visibility="Collapsed" Padding="14,7">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtToolHintIcon" Text="✍️" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TxtToolHint" Text="Modo Inserir Texto: Clique em qualquer local da página para adicionar sua anotação." 
+                               FontSize="12.5" FontWeight="SemiBold" Foreground="#93C5FD" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Button Grid.Column="1" Content="✕ Sair do Modo" Click="BtnExitToolMode_Click"
+                        Background="#334155" Foreground="#F8FAFC" FontSize="11.5" FontWeight="Medium"
+                        Padding="10,4" BorderThickness="0" Cursor="Hand">
+                    <Button.Resources>
+                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                    </Button.Resources>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="3">
+            <!-- Empty State -->
+            <Grid x:Name="PanelEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel MaxWidth="480" HorizontalAlignment="Center">
+                    <Border Width="80" Height="80" CornerRadius="40" Background="#1E293B" 
+                            BorderBrush="#334155" BorderThickness="2" HorizontalAlignment="Center" Margin="0,0,0,24">
+                        <TextBlock Text="📄" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <TextBlock Text="Nenhum documento aberto" FontSize="20" FontWeight="Bold" 
+                               Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                    
+                    <TextBlock Text="Abra um arquivo PDF do seu computador para começar a leitura, edição e validação." 
+                               Foreground="#94A3B8" FontSize="13" TextAlignment="Center" 
+                               TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,0,0,24" />
+
+                    <Button Content="Selecionar Arquivo PDF" Click="BtnOpenFile_Click"
+                            Background="#3B82F6" Foreground="White" FontSize="14" FontWeight="SemiBold"
+                            Padding="20,12" HorizontalAlignment="Center" BorderThickness="0" Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" 
+                            CornerRadius="6" Padding="12,8" Margin="0,24,0,0" HorizontalAlignment="Center">
+                        <TextBlock Text="💡 Dica: Você pode abrir múltiplos documentos simultaneamente em abas!" 
+                                   Foreground="#94A3B8" FontSize="12" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- Viewer, Tools and Validation Layout -->
+            <Grid x:Name="PanelActiveContent" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <!-- Column 0: Left Tools Sidebar -->
+                    <ColumnDefinition Width="58" />
+                    <!-- Column 1: Native WPF Document Viewer -->
+                    <ColumnDefinition Width="*" MinWidth="350" />
+                    <!-- Column 2: Resizable Splitter -->
+                    <ColumnDefinition x:Name="ColSplitter" Width="Auto" />
+                    <!-- Column 3: Validation & Notepad Panel -->
+                    <ColumnDefinition x:Name="ColNotepad" Width="0" MaxWidth="900" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Sidebar: Editing Tools -->
+                <Border Grid.Column="0" Background="#131D31" BorderBrush="#334155" BorderThickness="0,0,1,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,10,0,10">
+                            <!-- Inserir Texto Tool (Click-to-insert) -->
+                            <Button x:Name="BtnToolText" Content="✍️" ToolTip="Inserir Texto (Clique onde desejar na página)" Click="BtnToolText_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Marcador Amarelo Tool (Drag-to-highlight) -->
+                            <Button x:Name="BtnToolHighlight" Content="🖍️" ToolTip="Marcador Amarelo (Arraste sobre o texto para grifar)" Click="BtnToolHighlight_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Assinatura Tool -->
+                            <Button x:Name="BtnToolSignature" Content="🖋️" ToolTip="Assinatura Digital / Rubrica" Click="BtnToolSignature_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Separator -->
+                            <Rectangle Height="1" Fill="#334155" Margin="8,4,8,12" />
+
+                            <!-- Dividir / Extrair Tool -->
+                            <Button Content="✂️" ToolTip="Dividir / Extrair Páginas" Click="BtnToolSplit_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Mesclar PDFs Tool -->
+                            <Button Content="📑" ToolTip="Mesclar Arquivos PDF" Click="BtnToolMerge_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Girar Página Tool -->
+                            <Button Content="🔄" ToolTip="Girar Página Atual" Click="BtnToolRotate_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Separator -->
+                            <Rectangle Height="1" Fill="#334155" Margin="8,4,8,12" />
+
+                            <!-- Salvar PDF -->
+                            <Button Content="💾" ToolTip="Salvar Cópia do PDF" Click="BtnQuickSave_Click"
+                                    Width="42" Height="42" Margin="0,0,0,8" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <!-- Copiar Conteúdo -->
+                            <Button Content="📋" ToolTip="Copiar Texto Formatado" Click="BtnQuickCopy_Click"
+                                    Width="42" Height="42" Background="#1E293B" Foreground="#F8FAFC" 
+                                    FontSize="16" BorderThickness="0" Cursor="Hand">
+                                <Button.Resources>
+                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="8" /></Style>
+                                </Button.Resources>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Center: Native WPF Document Viewer with Scrolling & Direct Interaction -->
+                <ScrollViewer Grid.Column="1" x:Name="PdfScrollViewer" 
+                              Background="#0F172A" 
+                              HorizontalScrollBarVisibility="Auto" 
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="PdfPagesContainer" HorizontalAlignment="Center" Margin="24,20" />
+                </ScrollViewer>
+
+                <!-- Grid Splitter for Resizing -->
+                <GridSplitter Grid.Column="2" x:Name="SplitterBar" Width="6" HorizontalAlignment="Center" 
+                              VerticalAlignment="Stretch" Background="#1E293B" Cursor="SizeWE" Visibility="Collapsed" />
+
+                <!-- Validation & Notepad Panel -->
+                <Border Grid.Column="3" x:Name="PanelNotepad" Background="#131D31" 
+                        BorderBrush="#334155" BorderThickness="1,0,0,0" Visibility="Collapsed">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <!-- Panel Header (Document Type & Score) -->
+                            <RowDefinition Height="Auto" />
+                            <!-- Import Verdict Banner -->
+                            <RowDefinition Height="Auto" />
+                            <!-- Diagnostics & Properties Area -->
+                            <RowDefinition Height="Auto" />
+                            <!-- Text Editor -->
+                            <RowDefinition Height="*" />
+                            <!-- Bottom Status Bar -->
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Header: Big Document Type + Integrity Badge -->
+                        <Border Grid.Row="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="1" 
+                                CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Big Document Type Title with Integrity Color -->
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="CLASSIFICAÇÃO DO ARQUIVO" FontSize="10" FontWeight="Bold" Foreground="#94A3B8" />
+                                    <TextBlock x:Name="TxtHeaderDocType" Text="Texto Vetorial Nativo" 
+                                               FontSize="16" FontWeight="ExtraBold" Foreground="#10B981" 
+                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                </StackPanel>
+
+                                <!-- Integrity Score Badge -->
+                                <Border Grid.Column="1" x:Name="BadgeIntegrity" Background="#1E3A2F" BorderBrush="#10B981" BorderThickness="1" 
+                                        CornerRadius="8" Padding="10,6" Margin="8,0,8,0" VerticalAlignment="Center">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="TxtIntegrityScore" Text="100% Integridade" 
+                                                   FontSize="12" FontWeight="Bold" Foreground="#34D399" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="TxtIntegrityStatusText" Text="Alta Integridade" 
+                                                   FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Close Panel Button -->
+                                <Button Grid.Column="2" Content="✕" Click="BtnCloseNotepad_Click"
+                                        Width="26" Height="26" Background="Transparent" Foreground="#94A3B8" 
+                                        BorderThickness="0" Cursor="Hand" ToolTip="Recolher Painel de Validação" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Import Verdict Banner -->
+                        <Border Grid.Row="1" x:Name="BorderImportVerdict" Background="#1E3A2F" BorderBrush="#10B981" BorderThickness="1.5" 
+                                CornerRadius="8" Padding="12,8" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtImportVerdictIcon" Text="✅" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock x:Name="TxtImportVerdict" Text="O arquivo importa" 
+                                           FontSize="13" FontWeight="Bold" Foreground="#34D399" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Expandable Properties & Diagnostics Section -->
+                        <Border Grid.Row="2" Background="#1E293B" BorderBrush="#334155" BorderThickness="1" 
+                                CornerRadius="8" Padding="10" Margin="0,0,0,8">
+                            <StackPanel>
+                                <!-- Diagnostics Summary Grid -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="TxtDiagStrangeChars" Text="Sinais Estranhos: 0" 
+                                                   FontSize="11.5" Foreground="#E2E8F0" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="TxtDiagFormatting" Text="Formatação: Bem Formatado" 
+                                                   FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock x:Name="TxtDiagImages" Text="Imagens / Scans: 0" 
+                                                   FontSize="11.5" Foreground="#E2E8F0" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="TxtDiagCharCount" Text="Total de Caracteres: 0" 
+                                                   FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Warnings / Observations Text -->
+                                <TextBlock x:Name="TxtDiagWarning" Text="Texto analisado com alta integridade." 
+                                           FontSize="11" Foreground="#60A5FA" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                                <!-- Document Properties Expander -->
+                                <Expander x:Name="ExpanderProps" Header="ℹ️ Propriedades do Documento" 
+                                          Foreground="#94A3B8" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,8">
+                                    <Border Background="#131D31" BorderBrush="#334155" BorderThickness="1" 
+                                            CornerRadius="6" Padding="8" Margin="0,4,0,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Tamanho:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtPropFileSize" Text="-" Foreground="#E2E8F0" FontSize="11" Margin="0,1" />
+
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Versão PDF:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtPropPdfVersion" Text="-" Foreground="#E2E8F0" FontSize="11" Margin="0,1" />
+
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Dimensões:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtPropDimensions" Text="-" Foreground="#E2E8F0" FontSize="11" Margin="0,1" />
+
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Orientação:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="TxtPropOrientation" Text="-" Foreground="#E2E8F0" FontSize="11" Margin="0,1" />
+
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Autor / Produtor:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="4" Grid.Column="1" x:Name="TxtPropAuthorProducer" Text="-" Foreground="#E2E8F0" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,1" />
+
+                                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Criação:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="5" Grid.Column="1" x:Name="TxtPropCreationDate" Text="-" Foreground="#E2E8F0" FontSize="11" Margin="0,1" />
+
+                                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Segurança:" Foreground="#64748B" FontSize="11" Margin="0,1" />
+                                            <TextBlock Grid.Row="6" Grid.Column="1" x:Name="TxtPropSecurity" Text="-" Foreground="#E2E8F0" FontSize="11" Margin="0,1" />
+                                        </Grid>
+                                    </Border>
+                                </Expander>
+
+                                <!-- Action Buttons Bar -->
+                                <WrapPanel Orientation="Horizontal">
+                                    <!-- Toggle Raw Text vs Formatted Text -->
+                                    <Button x:Name="BtnToggleRawText" Content="Exibir Texto Cru" Click="BtnToggleRawText_Click"
+                                            Background="#334155" Foreground="#F8FAFC" FontSize="11" FontWeight="Medium"
+                                            Padding="8,5" Margin="0,0,6,4" BorderThickness="0" Cursor="Hand">
+                                        <Button.Resources>
+                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                                        </Button.Resources>
+                                    </Button>
+
+                                    <!-- Copy All -->
+                                    <Button Content="📋 Copiar Tudo" Click="BtnCopyText_Click"
+                                            Background="#334155" Foreground="#F8FAFC" FontSize="11" FontWeight="Medium"
+                                            Padding="8,5" Margin="0,0,6,4" BorderThickness="0" Cursor="Hand">
+                                        <Button.Resources>
+                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                                        </Button.Resources>
+                                    </Button>
+
+                                    <!-- Save TXT -->
+                                    <Button Content="💾 Salvar .txt" Click="BtnSaveTxt_Click"
+                                            Background="#334155" Foreground="#F8FAFC" FontSize="11" FontWeight="Medium"
+                                            Padding="8,5" Margin="0,0,6,4" BorderThickness="0" Cursor="Hand">
+                                        <Button.Resources>
+                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                                        </Button.Resources>
+                                    </Button>
+
+                                    <!-- Wrap Toggle -->
+                                    <Button x:Name="BtnToggleWrap" Content="Quebrar Linha: ON" Click="BtnToggleWrap_Click"
+                                            Background="#334155" Foreground="#94A3B8" FontSize="11"
+                                            Padding="8,5" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
+                                        <Button.Resources>
+                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                                        </Button.Resources>
+                                    </Button>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Text Editor -->
+                        <Border Grid.Row="3" Background="#0A0F1D" BorderBrush="#334155" BorderThickness="1" CornerRadius="6">
+                            <TextBox x:Name="TxtEditor" AcceptsReturn="True" AcceptsTab="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                     Background="Transparent" Foreground="#E2E8F0" CaretBrush="#38BDF8"
+                                     FontFamily="Consolas, Cascadia Code, Courier New" FontSize="12.5"
+                                     Padding="10" BorderThickness="0" TextChanged="TxtEditor_TextChanged" />
+                        </Border>
+
+                        <!-- Bottom Status Bar -->
+                        <Grid Grid.Row="4" Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="TxtEditorStats" Text="Caracteres: 0 | Palavras: 0" 
+                                       FontSize="11" Foreground="#64748B" VerticalAlignment="Center" />
+
+                            <TextBlock x:Name="TxtEditorMode" Text="Modo: Layout Preservado" 
+                                       Grid.Column="1" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

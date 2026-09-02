@@ -1,0 +1,46 @@
+name: Build & Release FT PDF
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore NuGet Dependencies
+      run: dotnet restore FtPdf.csproj
+
+    - name: Build Application
+      run: dotnet build FtPdf.csproj -c Release --no-restore
+
+    - name: Publish Windows Executable
+      run: |
+        dotnet publish FtPdf.csproj -c Release -r win-x64 --no-restore -o ./publish
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FT-PDF-Windows-x64
+        path: ./publish/
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./publish/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
