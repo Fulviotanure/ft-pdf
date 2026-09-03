@@ -43,6 +43,46 @@ namespace FtPdf
             InitializeComponent();
             StateChanged += MainWindow_StateChanged;
             InitializeViewerAsync();
+            CheckCommandLineArgs();
+        }
+
+        private void CheckCommandLineArgs()
+        {
+            try
+            {
+                var args = Environment.GetCommandLineArgs();
+                if (args.Length > 1)
+                {
+                    for (int i = 1; i < args.Length; i++)
+                    {
+                        string path = args[i].Trim('"', ' ');
+                        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                        {
+                            OpenTab(path);
+                        }
+                    }
+                }
+            }
+            catch {}
+        }
+
+        private void Window_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            try
+            {
+                if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+                {
+                    string[] files = (string[])e.Data.GetData(System.Windows.DataFormats.FileDrop);
+                    foreach (var file in files)
+                    {
+                        if (File.Exists(file) && file.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                        {
+                            OpenTab(file);
+                        }
+                    }
+                }
+            }
+            catch {}
         }
 
         private void MainWindow_StateChanged(object? sender, EventArgs e)
