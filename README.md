@@ -1,50 +1,48 @@
-# FT PDF - Leitor, Editor e Validador de Documentos PDF
+# FT PDF Suite
 
-Um aplicativo nativo, leve e moderno para Windows desenvolvido em **C# (.NET 10)** e **WPF**, focado em leitura rápida, integridade de dados e ferramentas de edição de PDF 100% offline.
-
----
-
-## 🚀 Funcionalidades Principais
-
-- **📄 Visualizador Nativo Rápido**:
-  - Renderização fluida de páginas com rolagem suave.
-  - Suporte completo a **Múltiplas Abas** para trabalhar com vários documentos PDF ao mesmo tempo.
-
-- **🔍 Análise de Integridade e Validação**:
-  - **Classificação do Documento**: Identifica automaticamente textos nativos, documentos escaneados (imagens) e documentos com fontes criptografadas ou caracteres corrompidos.
-  - **Veredito de Importação**: Informa se o arquivo importa perfeitamente, com ressalvas ou se não é importável.
-  - **Bloco de Notas Integrado**: Extração de texto preservando layout ou texto cru (raw glyphs), com cópia rápida e exportação para `.txt`.
-  - **Propriedades do Documento**: Metadados completos (autor, produtor, versão do PDF, tamanho, dimensões e segurança).
-
-- **✍️ Suíte de Edição Interativa**:
-  - **Inserção de Texto no Clique**: Clique em qualquer local da página para abrir uma caixa de texto flutuante com escolha de tamanho (10 a 32 pt) e cores (Branco, Preto, Vermelho).
-  - **Marcador Amarelo Direto**: Arraste o mouse sobre qualquer trecho para grifar com marca-texto amarelo semitransparente.
-  - **Assinatura Digital / Rubrica**: Desenhe sua assinatura com mouse/caneta ou carregue uma imagem para estampar nas páginas.
-  - **Dividir e Extrair Páginas**: Separe intervalos de páginas selecionadas em novos arquivos PDF.
-  - **Mesclar PDFs**: Una múltiplos documentos PDF em uma ordem personalizada.
-  - **Girar Páginas**: Rotação rápida em 90° e 180°.
+Repositório unificado contendo as duas edições oficiais do **FT PDF** desenvolvidas em **C# (.NET 10 WPF)**:
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 📁 Estrutura do Projeto
 
-- **Linguagem**: C# 13 / .NET 10 (Windows Desktop)
-- **Interface**: WPF (Windows Presentation Foundation) com tema escuro moderno
-- **Renderização e Extração**: PdfiumViewer, UglyToad.PdfPig
-- **Manipulação e Edição**: PDFsharp 6.x
-- **CI/CD**: GitHub Actions para compilação e empacotamento automatizado
+```text
+ft-pdf/
+├── FtPdf.slnx                       # Solution unificada (.NET 10)
+├── ft-pdf/                          # Edição Completa (Leitura, Validação e Ferramentas de Edição)
+│   ├── FtPdf.csproj
+│   ├── App.xaml / App.xaml.cs
+│   ├── MainWindow.xaml / .cs
+│   ├── Dialogs/
+│   ├── Services/
+│   ├── Models/
+│   └── Assets/
+├── ft-pdf-lite/                     # Edição Ultraleve (Leitura e Validação, sem ferramentas de edição)
+│   ├── FtPdfLite.csproj
+│   ├── App.xaml / App.xaml.cs
+│   ├── MainWindow.xaml / .cs
+│   ├── SettingsWindow.xaml / .cs
+│   ├── Services/
+│   ├── Models/
+│   ├── installer/
+│   └── Assets/
+├── Iniciar FT PDF.bat               # Inicializador rápido da edição completa
+├── Iniciar FT PDF Lite.bat          # Inicializador rápido da edição lite
+└── .github/workflows/
+    ├── release-ft-pdf.yml           # CI/CD & Releases da Edição Completa
+    └── release-ft-pdf-lite.yml      # CI/CD & Releases da Edição Lite
+```
 
 ---
 
-## 📦 Como Executar
+## 🚀 Como Acionar os Releases no GitHub Actions
 
-1. Certifique-se de ter o [.NET 10 SDK](https://dotnet.microsoft.com/download) instalado.
-2. Clone o repositório:
-   ```bash
-   git clone https://github.com/Fulviotanure/ft-pdf.git
-   cd ft-pdf
-   ```
-3. Compile e execute:
-   ```bash
-   dotnet run
-   ```
+### 1. Release do FT PDF (Edição Completa)
+- **Tag:** `v1.0.0`, `v1.1.0` (ou qualquer tag `vX.Y.Z` ou `ft-pdf-v*`)
+- **Manual:** Na aba **Actions** do GitHub, selecione o workflow **"Release FT PDF"** > **Run workflow**.
+- **Artefatos:** `FtPdf.exe` e `FT-PDF-Windows-x64.zip`.
+
+### 2. Release do FT PDF Lite (Edição Ultraleve)
+- **Tag:** `lite-v1.0.0`, `v1.0.0-lite` (ou qualquer tag `lite-v*` ou `v*-lite`)
+- **Manual:** Na aba **Actions** do GitHub, selecione o workflow **"Release FT PDF Lite"** > **Run workflow**.
+- **Artefatos:** `FtPdfLite.exe` e `FT-PDF-Lite-Windows-x64.zip`.

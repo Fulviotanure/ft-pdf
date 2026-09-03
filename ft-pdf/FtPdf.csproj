@@ -19,11 +19,6 @@
     <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Remove="lite\**" />
-    <Page Remove="lite\**" />
-    <Resource Remove="lite\**" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
