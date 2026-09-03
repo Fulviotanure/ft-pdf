@@ -1,0 +1,16 @@
+## .NET Core / .NET 10 Build Artifacts
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+
+## Visual Studio & VS Code Cache
+.vs/
+.vscode/
+*.user
+*.suo
+
+## OS Generated Files
+.DS_Store
+Thumbs.db
+desktop.ini
