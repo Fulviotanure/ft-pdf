@@ -325,27 +325,29 @@ namespace FtPdf.Services
                     score = Math.Clamp(Math.Round(score, 1), 0.0, 100.0);
                     report.IntegrityScore = score;
 
-                    // Set Import Verdict based on Score
-                    if (score >= 90.0)
+                    // Set Import Verdict based on Score: strictly < 100% triggers attention/warning
+                    if (score >= 100.0)
                     {
-                        report.IntegrityStatus = "Alta Integridade";
+                        report.IntegrityStatus = "100% - Integridade Perfeita";
                         report.DocumentType = "Texto Vetorial Nativo";
                         report.ImportVerdict = "O arquivo importa";
                         report.ImportVerdictColor = "#10B981"; // Green
                     }
-                    else if (score >= 65.0)
+                    else if (score >= 70.0)
                     {
-                        report.IntegrityStatus = "Média Integridade";
+                        report.IntegrityStatus = "Atenção - Abaixo de 100%";
                         report.DocumentType = "Texto com Pequenas Discrepâncias";
-                        report.ImportVerdict = "O arquivo pode importar com falha ou itens faltantes";
+                        report.ImportVerdict = "Atenção: o arquivo pode importar com erros";
                         report.ImportVerdictColor = "#F59E0B"; // Yellow/Orange
+                        report.DiagnosticWarnings.Insert(0, "Atenção: integridade abaixo de 100% - o documento pode importar com erros ou falhas.");
                     }
-                    else if (score >= 30.0)
+                    else if (score >= 35.0)
                     {
                         report.IntegrityStatus = "Baixa Integridade";
                         report.DocumentType = "Texto com Ruído / Itens Faltantes";
-                        report.ImportVerdict = "Grandes chances de dar erro na importação";
+                        report.ImportVerdict = "Atenção: grandes chances de erro na importação";
                         report.ImportVerdictColor = "#F97316"; // Orange
+                        report.DiagnosticWarnings.Insert(0, "Atenção: baixa integridade estrutural - o arquivo pode importar com erros ou partes truncadas.");
                     }
                     else
                     {

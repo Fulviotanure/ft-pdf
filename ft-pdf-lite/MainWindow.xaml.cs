@@ -357,7 +357,7 @@ namespace FtPdfLite
             TxtIntegrityScore.Text = $"{report.IntegrityScore:0.0}% Integridade";
             TxtIntegrityStatusText.Text = report.IntegrityStatus;
 
-            if (report.IntegrityScore >= 90.0)
+            if (report.IntegrityScore >= 100.0)
             {
                 var greenColor = (Color)ColorConverter.ConvertFromString("#10B981");
                 TxtHeaderDocType.Foreground = new SolidColorBrush(greenColor);
@@ -365,7 +365,7 @@ namespace FtPdfLite
                 BadgeIntegrity.BorderBrush = new SolidColorBrush(greenColor);
                 TxtIntegrityScore.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#34D399"));
             }
-            else if (report.IntegrityScore >= 65.0)
+            else if (report.IntegrityScore >= 70.0)
             {
                 var yellowColor = (Color)ColorConverter.ConvertFromString("#F59E0B");
                 TxtHeaderDocType.Foreground = new SolidColorBrush(yellowColor);
@@ -373,7 +373,7 @@ namespace FtPdfLite
                 BadgeIntegrity.BorderBrush = new SolidColorBrush(yellowColor);
                 TxtIntegrityScore.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FCD34D"));
             }
-            else if (report.IntegrityScore >= 30.0)
+            else if (report.IntegrityScore >= 35.0)
             {
                 var orangeColor = (Color)ColorConverter.ConvertFromString("#F97316");
                 TxtHeaderDocType.Foreground = new SolidColorBrush(orangeColor);
@@ -398,14 +398,17 @@ namespace FtPdfLite
                 BorderImportVerdict.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"));
                 TxtImportVerdict.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#34D399"));
             }
-            else if (report.ImportVerdict == "O arquivo pode importar com falha ou itens faltantes")
+            else if (report.ImportVerdict.StartsWith("Atenção") ||
+                     report.ImportVerdict.Contains("pode importar com falha") ||
+                     report.ImportVerdict.Contains("pode importar com erros"))
             {
                 TxtImportVerdictIcon.Text = "⚠️";
                 BorderImportVerdict.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3D3215"));
                 BorderImportVerdict.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                 TxtImportVerdict.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FCD34D"));
             }
-            else if (report.ImportVerdict == "Grandes chances de dar erro na importação")
+            else if (report.ImportVerdict.Contains("grandes chances", StringComparison.OrdinalIgnoreCase) ||
+                     report.ImportVerdict.Contains("Grandes chances"))
             {
                 TxtImportVerdictIcon.Text = "⚠️";
                 BorderImportVerdict.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3E2619"));
