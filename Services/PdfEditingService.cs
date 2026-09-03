@@ -91,16 +91,77 @@ namespace FtPdf.Services
 
         public void InsertText(string sourcePath, string outputPath, int pageNumber, string text, double x, double y, double fontSize, XColor color)
         {
+            InsertFormattedTextBox(sourcePath, outputPath, pageNumber, text, x, y, 400, fontSize, color, false, false);
+        }
+
+        public void InsertFormattedTextBox(
+            string sourcePath, 
+            string outputPath, 
+            int pageNumber, 
+            string text, 
+            double x, 
+            double y, 
+            double width, 
+            double fontSize, 
+            XColor color, 
+            bool isBold, 
+            bool isItalic)
+        {
             using var document = PdfReader.Open(sourcePath, PdfDocumentOpenMode.Modify);
             if (pageNumber < 1 || pageNumber > document.PageCount)
                 throw new ArgumentOutOfRangeException(nameof(pageNumber), "Número de página inválido.");
 
             var page = document.Pages[pageNumber - 1];
             using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
-            var font = new XFont("Arial", fontSize, XFontStyleEx.Regular);
+
+            var style = XFontStyleEx.Regular;
+            if (isBold && isItalic) style = XFontStyleEx.BoldItalic;
+            else if (isBold) style = XFontStyleEx.Bold;
+            else if (isItalic) style = XFontStyleEx.Italic;
+
+            var font = new XFont("Arial", fontSize, style);
             var brush = new XSolidBrush(color);
 
-            gfx.DrawString(text, font, brush, new XPoint(x, y), XStringFormats.TopLeft);
+            var rawLines = (text ?? string.Empty).Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            double lineHeight = fontSize * 1.35;
+            double currentY = y;
+            double effectiveWidth = Math.Max(width, 100);
+
+            foreach (var rawLine in rawLines)
+            {
+                if (string.IsNullOrEmpty(rawLine))
+                {
+                    currentY += lineHeight;
+                    continue;
+                }
+
+                var words = rawLine.Split(' ');
+                string currentLine = "";
+
+                foreach (var word in words)
+                {
+                    string testLine = string.IsNullOrEmpty(currentLine) ? word : $"{currentLine} {word}";
+                    var size = gfx.MeasureString(testLine, font);
+
+                    if (size.Width > effectiveWidth && !string.IsNullOrEmpty(currentLine))
+                    {
+                        gfx.DrawString(currentLine, font, brush, new XPoint(x, currentY), XStringFormats.TopLeft);
+                        currentY += lineHeight;
+                        currentLine = word;
+                    }
+                    else
+                    {
+                        currentLine = testLine;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(currentLine))
+                {
+                    gfx.DrawString(currentLine, font, brush, new XPoint(x, currentY), XStringFormats.TopLeft);
+                    currentY += lineHeight;
+                }
+            }
+
             document.Save(outputPath);
         }
 

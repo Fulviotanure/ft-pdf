@@ -293,7 +293,7 @@
             </Border>
 
             <!-- ==================== CENTER: VIEWER & EMPTY STATE ==================== -->
-            <Grid Grid.Column="1" Background="#0F172A">
+            <Grid Grid.Column="1" x:Name="CenterDocumentContainer" Background="#0F172A">
                 <!-- Empty State (When no documents are open) -->
                 <Grid x:Name="PanelEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel MaxWidth="460" HorizontalAlignment="Center">
@@ -324,6 +324,155 @@
                 <Grid x:Name="PanelActiveContent" Visibility="Collapsed">
                     <wv2:WebView2 x:Name="PdfWebViewer" />
                 </Grid>
+
+                <!-- Floating Interactive Text Box with Text Tools, Dotted Border, and Word Wrapping -->
+                <Popup x:Name="PopupFloatingTextBox" 
+                       AllowsTransparency="True" 
+                       PlacementTarget="{Binding ElementName=CenterDocumentContainer}"
+                       Placement="Center"
+                       StaysOpen="True"
+                       IsOpen="False">
+                    <Grid Margin="10">
+                        <StackPanel x:Name="FloatingBoxRoot">
+                            <!-- 1. Text Tools Floating Header Toolbar -->
+                            <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" 
+                                    Padding="8,5" Margin="0,0,0,6">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.45" Color="Black" />
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Drag Handle -->
+                                    <Border Grid.Column="0" x:Name="DragHandleBar" Background="#334155" CornerRadius="4" 
+                                            Padding="6,3" Margin="0,0,8,0" Cursor="SizeAll"
+                                            MouseLeftButtonDown="DragHandle_MouseLeftButtonDown"
+                                            MouseMove="DragHandle_MouseMove"
+                                            MouseLeftButtonUp="DragHandle_MouseLeftButtonUp"
+                                            ToolTip="Clique e arraste para posicionar a caixa sobre o documento">
+                                        <TextBlock Text="⋮⋮ Mover" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <!-- Font Size Selector -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="🔤" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                        <ComboBox x:Name="CmbFloatingFontSize" Width="55" Height="24" FontSize="11" 
+                                                  Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155"
+                                                  SelectionChanged="CmbFloatingFontSize_SelectionChanged">
+                                            <ComboBoxItem Content="10" />
+                                            <ComboBoxItem Content="12" />
+                                            <ComboBoxItem Content="14" />
+                                            <ComboBoxItem Content="16" IsSelected="True" />
+                                            <ComboBoxItem Content="18" />
+                                            <ComboBoxItem Content="20" />
+                                            <ComboBoxItem Content="24" />
+                                            <ComboBoxItem Content="28" />
+                                            <ComboBoxItem Content="32" />
+                                            <ComboBoxItem Content="40" />
+                                            <ComboBoxItem Content="48" />
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <!-- Color Selector -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <Button x:Name="BtnColorBlack" Width="18" Height="18" Margin="0,0,3,0" Background="#000000" 
+                                                BorderBrush="#38BDF8" BorderThickness="2" Cursor="Hand" ToolTip="Preto" Click="BtnColor_Click" Tag="#000000">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9" /></Style></Button.Resources>
+                                        </Button>
+                                        <Button x:Name="BtnColorWhite" Width="18" Height="18" Margin="0,0,3,0" Background="#FFFFFF" 
+                                                BorderBrush="#64748B" BorderThickness="1" Cursor="Hand" ToolTip="Branco" Click="BtnColor_Click" Tag="#FFFFFF">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9" /></Style></Button.Resources>
+                                        </Button>
+                                        <Button x:Name="BtnColorRed" Width="18" Height="18" Margin="0,0,3,0" Background="#EF4444" 
+                                                BorderBrush="#64748B" BorderThickness="1" Cursor="Hand" ToolTip="Vermelho" Click="BtnColor_Click" Tag="#EF4444">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9" /></Style></Button.Resources>
+                                        </Button>
+                                        <Button x:Name="BtnColorBlue" Width="18" Height="18" Margin="0,0,3,0" Background="#2563EB" 
+                                                BorderBrush="#64748B" BorderThickness="1" Cursor="Hand" ToolTip="Azul" Click="BtnColor_Click" Tag="#2563EB">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9" /></Style></Button.Resources>
+                                        </Button>
+                                        <Button x:Name="BtnColorYellow" Width="18" Height="18" Margin="0,0,3,0" Background="#EAB308" 
+                                                BorderBrush="#64748B" BorderThickness="1" Cursor="Hand" ToolTip="Amarelo" Click="BtnColor_Click" Tag="#EAB308">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9" /></Style></Button.Resources>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- Formatting Bold & Italic -->
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <ToggleButton x:Name="BtnFloatingBold" Content="B" Width="24" Height="24" Margin="0,0,3,0" 
+                                                      FontWeight="ExtraBold" FontSize="11.5" Background="#0F172A" Foreground="#F8FAFC" 
+                                                      BorderBrush="#334155" Cursor="Hand" ToolTip="Negrito" Click="BtnFloatingStyle_Click" />
+                                        <ToggleButton x:Name="BtnFloatingItalic" Content="I" Width="24" Height="24" 
+                                                      FontStyle="Italic" FontWeight="Bold" FontSize="11.5" Background="#0F172A" Foreground="#F8FAFC" 
+                                                      BorderBrush="#334155" Cursor="Hand" ToolTip="Itálico" Click="BtnFloatingStyle_Click" />
+                                    </StackPanel>
+
+                                    <!-- Page Selector -->
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Pág:" FontSize="11" Foreground="#94A3B8" Margin="0,0,3,0" VerticalAlignment="Center" />
+                                        <ComboBox x:Name="CmbFloatingPage" Width="48" Height="24" FontSize="11" 
+                                                  Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" />
+                                    </StackPanel>
+
+                                    <!-- Action Buttons: Apply & Close -->
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="BtnApplyFloatingText" Content="✅ Inserir" Click="BtnApplyFloatingText_Click"
+                                                Background="#10B981" Foreground="White" FontSize="11" FontWeight="Bold" 
+                                                Padding="10,4" Margin="0,0,4,0" BorderThickness="0" Cursor="Hand" ToolTip="Gravar texto no PDF">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5" /></Style></Button.Resources>
+                                        </Button>
+                                        <Button x:Name="BtnCloseFloatingText" Content="✕" Click="BtnCloseFloatingText_Click"
+                                                Background="#334155" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" 
+                                                Width="22" Height="22" BorderThickness="0" Cursor="Hand" ToolTip="Cancelar">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5" /></Style></Button.Resources>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- 2. The Dotted Transparent Resizable Text Box with Word Wrap -->
+                            <Grid x:Name="BoxBorderContainer" Width="360" Height="120" MinWidth="180" MinHeight="60">
+                                <!-- Dotted Border Background (Transparent fill, vibrant dashed outline) -->
+                                <Rectangle Stroke="#38BDF8" StrokeThickness="1.8" StrokeDashArray="3 3" 
+                                           RadiusX="4" RadiusY="4" Fill="#05000000" IsHitTestVisible="False" />
+
+                                <!-- The Actual Text Box (Transparent, Wrapped) -->
+                                <TextBox x:Name="TxtFloatingInput" 
+                                         Background="Transparent" 
+                                         Foreground="#000000" 
+                                         BorderThickness="0" 
+                                         TextWrapping="Wrap" 
+                                         AcceptsReturn="True" 
+                                         FontFamily="Arial" 
+                                         FontSize="16" 
+                                         CaretBrush="#38BDF8" 
+                                         Padding="8" 
+                                         VerticalScrollBarVisibility="Disabled"
+                                         HorizontalScrollBarVisibility="Disabled"
+                                         Margin="2" />
+
+                                <!-- Bottom-Right Resize Grip -->
+                                <Thumb x:Name="ResizeThumb" Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                       Cursor="SizeNWSE" DragDelta="ResizeThumb_DragDelta">
+                                    <Thumb.Template>
+                                        <ControlTemplate>
+                                            <Grid Background="Transparent">
+                                                <Path Data="M 12,2 L 12,12 L 2,12 Z" Fill="#38BDF8" />
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Popup>
             </Grid>
 
             <!-- Grid Splitter for Resizing Validation Panel -->

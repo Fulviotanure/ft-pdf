@@ -25,6 +25,12 @@ using Orientation = System.Windows.Controls.Orientation;
 using StackPanel = System.Windows.Controls.StackPanel;
 using TextBlock = System.Windows.Controls.TextBlock;
 using Border = System.Windows.Controls.Border;
+using ComboBoxItem = System.Windows.Controls.ComboBoxItem;
+using SelectionChangedEventArgs = System.Windows.Controls.SelectionChangedEventArgs;
+using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Point = System.Windows.Point;
+using Vector = System.Windows.Vector;
 
 namespace FtPdf
 {
@@ -351,51 +357,213 @@ namespace FtPdf
 
         #region Editing Tools Handlers
 
+        private Point _dragStartPoint;
+        private double _startHOffset;
+        private double _startVOffset;
+        private bool _isDraggingPopup = false;
+        private string _selectedTextColorHex = "#000000";
+
         private void BtnToolText_Click(object sender, RoutedEventArgs e)
         {
             if (_activeTab == null)
             {
-                MessageBox.Show(this, "Abra um arquivo PDF primeiro para inserir anotações.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, "Abra um arquivo PDF primeiro para inserir caixas de texto.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            var dialog = new InsertTextDialog(_activeTab.TotalPages, 1) { Owner = this };
-
-            if (dialog.ShowDialog() == true)
+            // Populate Page dropdown
+            CmbFloatingPage.Items.Clear();
+            for (int i = 1; i <= _activeTab.TotalPages; i++)
             {
-                try
-                {
-                    var saveDialog = new SaveFileDialog
-                    {
-                        Filter = "Arquivo PDF (*.pdf)|*.pdf",
-                        DefaultExt = "pdf",
-                        FileName = Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_editado.pdf",
-                        Title = "Salvar PDF com Texto Inserido"
-                    };
+                CmbFloatingPage.Items.Add(new ComboBoxItem { Content = i.ToString(), IsSelected = (i == 1) });
+            }
 
-                    if (saveDialog.ShowDialog(this) == true)
-                    {
-                        _editingService.InsertText(
-                            _activeTab.FilePath,
-                            saveDialog.FileName,
-                            dialog.PageNumber,
-                            dialog.TextToInsert,
-                            dialog.PosX,
-                            dialog.PosY,
-                            dialog.FontSizeValue,
-                            dialog.TextColor
-                        );
+            // Center initial position
+            PopupFloatingTextBox.HorizontalOffset = 0;
+            PopupFloatingTextBox.VerticalOffset = 0;
 
-                        OpenTab(saveDialog.FileName);
-                        MessageBox.Show(this, "Texto inserido com sucesso!", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                }
-                catch (Exception ex)
+            // Reset text and open
+            TxtFloatingInput.Text = "Digite seu texto aqui...";
+            PopupFloatingTextBox.IsOpen = true;
+
+            // Set focus to the text box and select all so user can immediately type
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                TxtFloatingInput.Focus();
+                TxtFloatingInput.SelectAll();
+            }), System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        #region Floating Text Box Interactivity Handlers
+
+        private void DragHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isDraggingPopup = true;
+            _dragStartPoint = e.GetPosition(this);
+            _startHOffset = PopupFloatingTextBox.HorizontalOffset;
+            _startVOffset = PopupFloatingTextBox.VerticalOffset;
+            ((UIElement)sender).CaptureMouse();
+        }
+
+        private void DragHandle_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isDraggingPopup)
+            {
+                Point current = e.GetPosition(this);
+                Vector diff = current - _dragStartPoint;
+                PopupFloatingTextBox.HorizontalOffset = _startHOffset + diff.X;
+                PopupFloatingTextBox.VerticalOffset = _startVOffset + diff.Y;
+            }
+        }
+
+        private void DragHandle_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_isDraggingPopup)
+            {
+                _isDraggingPopup = false;
+                ((UIElement)sender).ReleaseMouseCapture();
+            }
+        }
+
+        private void ResizeThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            double newWidth = Math.Max(180, BoxBorderContainer.Width + e.HorizontalChange);
+            double newHeight = Math.Max(50, BoxBorderContainer.Height + e.VerticalChange);
+            BoxBorderContainer.Width = newWidth;
+            BoxBorderContainer.Height = newHeight;
+        }
+
+        private void CmbFloatingFontSize_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (CmbFloatingFontSize != null && CmbFloatingFontSize.SelectedItem is ComboBoxItem item &&
+                double.TryParse(item.Content.ToString(), out double sz) &&
+                TxtFloatingInput != null)
+            {
+                TxtFloatingInput.FontSize = sz;
+            }
+        }
+
+        private void BtnColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string hex)
+            {
+                _selectedTextColorHex = hex;
+                var color = (Color)ColorConverter.ConvertFromString(hex);
+                TxtFloatingInput.Foreground = new SolidColorBrush(color);
+
+                // Update visual indication on color buttons
+                Button[] colorBtns = { BtnColorBlack, BtnColorWhite, BtnColorRed, BtnColorBlue, BtnColorYellow };
+                foreach (var b in colorBtns)
                 {
-                    MessageBox.Show(this, $"Erro ao inserir texto no PDF:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                    if (b == null) continue;
+                    bool isThis = (b == btn);
+                    b.BorderBrush = isThis ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#38BDF8")) : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B"));
+                    b.BorderThickness = isThis ? new Thickness(2) : new Thickness(1);
                 }
             }
         }
+
+        private void BtnFloatingStyle_Click(object sender, RoutedEventArgs e)
+        {
+            if (TxtFloatingInput == null) return;
+            TxtFloatingInput.FontWeight = (BtnFloatingBold.IsChecked == true) ? FontWeights.Bold : FontWeights.Normal;
+            TxtFloatingInput.FontStyle = (BtnFloatingItalic.IsChecked == true) ? FontStyles.Italic : FontStyles.Normal;
+        }
+
+        private void BtnCloseFloatingText_Click(object sender, RoutedEventArgs e)
+        {
+            PopupFloatingTextBox.IsOpen = false;
+        }
+
+        private void BtnApplyFloatingText_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeTab == null || !File.Exists(_activeTab.FilePath)) return;
+
+            string text = TxtFloatingInput.Text.Trim();
+            if (string.IsNullOrEmpty(text))
+            {
+                MessageBox.Show(this, "Por favor, digite algum texto antes de aplicar no PDF.", "Texto Vazio", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            int pageNumber = 1;
+            if (CmbFloatingPage.SelectedItem is ComboBoxItem pageItem && int.TryParse(pageItem.Content.ToString(), out int p))
+            {
+                pageNumber = p;
+            }
+
+            double fontSize = TxtFloatingInput.FontSize;
+            bool isBold = BtnFloatingBold.IsChecked == true;
+            bool isItalic = BtnFloatingItalic.IsChecked == true;
+
+            var wpfColor = (Color)ColorConverter.ConvertFromString(_selectedTextColorHex);
+            var xColor = PdfSharp.Drawing.XColor.FromArgb(wpfColor.A, wpfColor.R, wpfColor.G, wpfColor.B);
+
+            // Compute PDF coordinates based on container size
+            double viewerW = Math.Max(CenterDocumentContainer.ActualWidth, 400);
+            double viewerH = Math.Max(CenterDocumentContainer.ActualHeight, 400);
+
+            double relX = (viewerW / 2.0) + PopupFloatingTextBox.HorizontalOffset - (BoxBorderContainer.Width / 2.0);
+            double relY = (viewerH / 2.0) + PopupFloatingTextBox.VerticalOffset - (BoxBorderContainer.Height / 2.0);
+
+            double normX = Math.Clamp(relX / viewerW, 0.05, 0.90);
+            double normY = Math.Clamp(relY / viewerH, 0.05, 0.90);
+
+            double pdfPageW = 595;
+            double pdfPageH = 842;
+            try
+            {
+                using var doc = PdfSharp.Pdf.IO.PdfReader.Open(_activeTab.FilePath, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+                if (pageNumber <= doc.PageCount)
+                {
+                    pdfPageW = doc.Pages[pageNumber - 1].Width.Point;
+                    pdfPageH = doc.Pages[pageNumber - 1].Height.Point;
+                }
+            }
+            catch {}
+
+            double pdfX = normX * pdfPageW;
+            double pdfY = normY * pdfPageH;
+            double pdfBoxWidth = (BoxBorderContainer.Width / viewerW) * pdfPageW;
+
+            var saveDialog = new SaveFileDialog
+            {
+                Filter = "Arquivo PDF (*.pdf)|*.pdf",
+                DefaultExt = "pdf",
+                FileName = Path.GetFileNameWithoutExtension(_activeTab.FilePath) + "_texto.pdf",
+                Title = "Salvar PDF com Caixa de Texto"
+            };
+
+            if (saveDialog.ShowDialog(this) == true)
+            {
+                try
+                {
+                    _editingService.InsertFormattedTextBox(
+                        _activeTab.FilePath,
+                        saveDialog.FileName,
+                        pageNumber,
+                        text,
+                        pdfX,
+                        pdfY,
+                        pdfBoxWidth,
+                        fontSize,
+                        xColor,
+                        isBold,
+                        isItalic
+                    );
+
+                    PopupFloatingTextBox.IsOpen = false;
+                    OpenTab(saveDialog.FileName);
+                    MessageBox.Show(this, "Texto inserido com sucesso!", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Erro ao gravar texto no PDF:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        #endregion
 
         private void BtnToolHighlight_Click(object sender, RoutedEventArgs e)
         {
