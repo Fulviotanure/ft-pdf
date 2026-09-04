@@ -1,0 +1,41 @@
+# Configuração do GitHub Dependabot para FT PDF Suite
+version: 2
+updates:
+  # Dependências NuGet do FT PDF (Edição Completa)
+  - package-ecosystem: "nuget"
+    directory: "/ft-pdf"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Dependências NuGet do FT PDF Lite (Edição Ultraleve)
+  - package-ecosystem: "nuget"
+    directory: "/ft-pdf-lite"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps-lite)"
+      include: "scope"
+
+  # Atualizações automáticas dos workflows do GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(actions)"
+      include: "scope"
