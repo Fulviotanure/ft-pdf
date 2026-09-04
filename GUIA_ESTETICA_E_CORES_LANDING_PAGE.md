@@ -256,10 +256,14 @@ Tabela simples e limpa:
 
 ---
 
-### 📌 Links Específicos por Versão (Arquivo Histórico)
-Caso você queira disponibilizar links para uma versão específica congelada (ex: v2.0.0):
-- **FT PDF Completo (v2.0.0):** `https://github.com/Fulviotanure/ft-pdf/releases/download/v2.0.0/FtPdf.exe`
-- **FT PDF Lite (v2.0.0):** `https://github.com/Fulviotanure/ft-pdf/releases/download/v2.0.0/FtPdfLite.exe`
+### 📌 Links Específicos por Versão (Versão Atual v2.0.0)
+Como na versão 2.0.0 os lançamentos foram gerados em tags separadas no GitHub:
+- **FT PDF Completo (.exe):** `https://github.com/Fulviotanure/ft-pdf/releases/download/v2.0.0/FtPdf.exe`
+- **FT PDF Completo (.zip):** `https://github.com/Fulviotanure/ft-pdf/releases/download/v2.0.0/FT-PDF-Windows-x64.zip`
+- **FT PDF Lite (.exe Ultraleve):** `https://github.com/Fulviotanure/ft-pdf/releases/download/lite-v2.0.0/FtPdfLite.exe`
+- **FT PDF Lite (.zip):** `https://github.com/Fulviotanure/ft-pdf/releases/download/lite-v2.0.0/FT-PDF-Lite-Windows-x64.zip`
+
+> **Atenção:** Na tag `v2.0.0` está apenas o FT PDF Completo (`FtPdf.exe`). O executável do FT PDF Lite está na tag `lite-v2.0.0` (`.../download/lite-v2.0.0/FtPdfLite.exe`). Para que o link permanente `latest/download/FtPdfLite.exe` funcione, você também pode simplesmente arrastar o arquivo `FtPdfLite.exe` para dentro do release `v2.0.0` no GitHub.
 
 ---
 

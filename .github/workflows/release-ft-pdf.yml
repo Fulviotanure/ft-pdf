@@ -5,19 +5,15 @@ permissions:
 
 on:
   push:
-    paths:
-      - 'ft-pdf/**'
-      - 'ft-pdf-lite/**'
-      - '.github/workflows/release-ft-pdf.yml'
     tags:
       - 'v*'
       - 'ft-pdf-v*'
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Tag de versão do release (ex: v2.0.0)'
+        description: 'Tag de versão do release (ex: v2.1.0)'
         required: false
-        default: 'v2.0.0'
+        default: 'v2.1.0'
 
 jobs:
   build-and-release:
