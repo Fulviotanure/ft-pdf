@@ -106,9 +106,16 @@ namespace FtPdfLite.Services
             {
                 string tempDir = Path.GetTempPath();
                 string tempFile = Path.Combine(tempDir, $"{Path.GetFileNameWithoutExtension(targetExeName)}_vNew.exe");
+                using (var downloadClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
+                {
+                    downloadClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("FtPdfLiteUpdater", "2.1"));
+                    using var response = await downloadClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                    response.EnsureSuccessStatusCode();
 
-                var bytes = await _httpClient.GetByteArrayAsync(downloadUrl);
-                await File.WriteAllBytesAsync(tempFile, bytes);
+                    using var contentStream = await response.Content.ReadAsStreamAsync();
+                    using var fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+                    await contentStream.CopyToAsync(fileStream);
+                }
 
                 string currentExePath = Process.GetCurrentProcess().MainModule?.FileName ?? "";
 
