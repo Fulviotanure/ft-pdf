@@ -54,12 +54,12 @@ namespace FtPdfLite.Services
                     string tagName = release.TryGetProperty("tag_name", out var tagProp) ? (tagProp.GetString() ?? "") : "";
 
                     bool matchesMode = isLite
-                        ? tagName.StartsWith("lite-v", StringComparison.OrdinalIgnoreCase)
+                        ? (tagName.StartsWith("lite-v", StringComparison.OrdinalIgnoreCase) || tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase))
                         : (tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase) && !tagName.StartsWith("lite-", StringComparison.OrdinalIgnoreCase));
 
                     if (!matchesMode) continue;
 
-                    string versionStr = isLite
+                    string versionStr = tagName.StartsWith("lite-v", StringComparison.OrdinalIgnoreCase)
                         ? tagName.Substring("lite-v".Length)
                         : tagName.TrimStart('v', 'V');
 

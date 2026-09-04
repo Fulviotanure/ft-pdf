@@ -7,6 +7,7 @@ on:
   push:
     paths:
       - 'ft-pdf/**'
+      - 'ft-pdf-lite/**'
       - '.github/workflows/release-ft-pdf.yml'
     tags:
       - 'v*'
@@ -32,45 +33,57 @@ jobs:
         dotnet-version: '10.0.x'
 
     - name: Restore NuGet Dependencies (win-x64)
-      run: dotnet restore ft-pdf/FtPdf.csproj -r win-x64
+      run: |
+        dotnet restore ft-pdf/FtPdf.csproj -r win-x64
+        dotnet restore ft-pdf-lite/FtPdfLite.csproj -r win-x64
 
-    - name: Build FT PDF
-      run: dotnet build ft-pdf/FtPdf.csproj -c Release -r win-x64 --no-restore
+    - name: Build FT PDF & FT PDF Lite
+      run: |
+        dotnet build ft-pdf/FtPdf.csproj -c Release -r win-x64 --no-restore
+        dotnet build ft-pdf-lite/FtPdfLite.csproj -c Release -r win-x64 --no-restore
 
-    - name: Publish FT PDF (Standalone SingleFile)
+    - name: Publish FT PDF (Edição Completa)
       run: |
         dotnet publish ft-pdf/FtPdf.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true --self-contained true -o ./publish-ft-pdf
 
-    - name: Package Release ZIP
+    - name: Publish FT PDF Lite (Edição Ultraleve)
+      run: |
+        dotnet publish ft-pdf-lite/FtPdfLite.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true --self-contained true -o ./publish-ft-pdf-lite
+
+    - name: Package Release ZIPs
       shell: pwsh
       run: |
         Compress-Archive -Path ./publish-ft-pdf/* -DestinationPath ./FT-PDF-Windows-x64.zip -Force
+        Compress-Archive -Path ./publish-ft-pdf-lite/* -DestinationPath ./FT-PDF-Lite-Windows-x64.zip -Force
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
         name: FT-PDF-Windows-x64
-        path: ./publish-ft-pdf/
+        path: |
+          ./publish-ft-pdf/
+          ./publish-ft-pdf-lite/
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name || inputs.version_tag }}
-        name: "FT PDF ${{ github.ref_name || inputs.version_tag }} (Edição Completa)"
+        name: "FT PDF ${{ github.ref_name || inputs.version_tag }} (Completo e Lite)"
         body: |
-          ### 🚀 Release FT PDF - Edição Completa
+          ### 🚀 Lançamento Oficial FT PDF & FT PDF Lite
           
-          - **Leitor de PDF Vetorial Nativo** (Aceleração por Hardware)
-          - **Múltiplas Abas Integradas**
-          - **✍️ Caixa de Texto Interativa Flutuante** (Fundo Transparente, Bordas Pontilhadas, Quebra de Linha Integrada)
-          - **Ferramentas de Edição:** Inserir Texto, Destaque, Assinatura Digital, Dividir, Mesclar e Girar
-          - **🔍 Validação e Diagnóstico de Integridade**
-          - **Ícone Clássico:** Monograma azul com facetas
+          Neste release você encontra os binários oficiais para Windows (64-bit):
           
-          Baixe o executável abaixo para usar imediatamente!
+          - **FT PDF (Edição Completa):** Leitor com aceleração por hardware, abas, caixa de texto interativa flutuante, notas, assinaturas e diagnóstico.
+          - **FT PDF Lite (Edição Ultraleve):** Focado exclusivamente em leitura instantânea, abas e bloco de notas integrado. Executável único de ~6.5 MB.
+          
+          Ambos funcionam diretamente com 2 cliques, 100% Self-Contained (zero dependência de .NET).
         files: |
           ./publish-ft-pdf/FtPdf.exe
           ./FT-PDF-Windows-x64.zip
+          ./publish-ft-pdf-lite/FtPdfLite.exe
+          ./FT-PDF-Lite-Windows-x64.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
