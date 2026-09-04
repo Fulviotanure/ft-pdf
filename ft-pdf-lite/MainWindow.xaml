@@ -8,6 +8,12 @@
         WindowStartupLocation="CenterScreen"
         Background="#0F172A"
         Foreground="#F8FAFC"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        FontFamily="Segoe UI"
         AllowDrop="True"
         Drop="Window_Drop">
 
@@ -466,5 +472,46 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- ==================== BANNER DISCRETO: LEITOR PADRÃO ==================== -->
+        <Border x:Name="BannerDefaultApp" Grid.Row="1" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                Background="#0F172A" BorderBrush="#2563EB" BorderThickness="1.5"
+                CornerRadius="8" Padding="14,8" Margin="20,0,20,14"
+                Panel.ZIndex="999">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16" ShadowDepth="3" Opacity="0.55" Color="Black" />
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Path Grid.Column="0" Data="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" 
+                      Fill="#38BDF8" Width="14" Height="14" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center" />
+
+                <TextBlock Grid.Column="1" Text="Deseja definir o FT PDF Lite como seu leitor padrão de PDF no Windows?" 
+                           FontSize="12" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                <Button Grid.Column="2" Content="OK, Definir como Padrão" Click="BtnSetDefaultBanner_Click"
+                        Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="11.5"
+                        Padding="12,5" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0">
+                    <Button.Resources>
+                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button Grid.Column="3" Content="✕" Click="BtnDismissDefaultBanner_Click"
+                        Width="22" Height="22" Background="Transparent" Foreground="#94A3B8" FontSize="11"
+                        BorderThickness="0" Cursor="Hand" ToolTip="Não perguntar novamente">
+                    <Button.Resources>
+                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4" /></Style>
+                    </Button.Resources>
+                </Button>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

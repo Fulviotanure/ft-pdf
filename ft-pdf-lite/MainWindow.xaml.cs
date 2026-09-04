@@ -44,6 +44,8 @@ namespace FtPdfLite
             StateChanged += MainWindow_StateChanged;
             InitializeViewerAsync();
             CheckCommandLineArgs();
+            Loaded += async (s, e) => await UpdateService.AutoCheckOnStartupAsync(isLite: true, this);
+            Loaded += (s, e) => CheckDefaultAppBanner();
         }
 
         private void CheckCommandLineArgs()
@@ -201,6 +203,7 @@ namespace FtPdfLite
         {
             var settings = new SettingsWindow { Owner = this };
             settings.ShowDialog();
+            CheckDefaultAppBanner();
         }
 
         private void BtnOpenFile_Click(object sender, RoutedEventArgs e)
@@ -654,6 +657,36 @@ namespace FtPdfLite
             int chars = TxtEditor.Text.Length;
             int words = TxtEditor.Text.Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
             TxtEditorStats.Text = $"Caracteres: {chars:N0} | Palavras: {words:N0}";
+        }
+
+        #endregion
+
+        #region Default App Banner
+
+        private void CheckDefaultAppBanner()
+        {
+            try
+            {
+                bool isDef = DefaultAppService.IsDefaultPdfReader(isLite: true);
+                bool dismissed = DefaultAppService.IsDismissed(isLite: true);
+                BannerDefaultApp.Visibility = (!isDef && !dismissed) ? Visibility.Visible : Visibility.Collapsed;
+            }
+            catch
+            {
+                BannerDefaultApp.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void BtnSetDefaultBanner_Click(object sender, RoutedEventArgs e)
+        {
+            BannerDefaultApp.Visibility = Visibility.Collapsed;
+            DefaultAppService.RegisterAndSetDefault(isLite: true);
+        }
+
+        private void BtnDismissDefaultBanner_Click(object sender, RoutedEventArgs e)
+        {
+            BannerDefaultApp.Visibility = Visibility.Collapsed;
+            DefaultAppService.DismissPrompt(isLite: true);
         }
 
         #endregion

@@ -7,6 +7,8 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using MessageBox = System.Windows.MessageBox;
+using Application = System.Windows.Application;
 
 namespace FtPdf.Services
 {
