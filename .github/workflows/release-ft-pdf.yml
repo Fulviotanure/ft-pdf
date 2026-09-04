@@ -39,7 +39,7 @@ jobs:
 
     - name: Publish FT PDF (Standalone SingleFile)
       run: |
-        dotnet publish ft-pdf/FtPdf.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --self-contained false -o ./publish-ft-pdf
+        dotnet publish ft-pdf/FtPdf.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true --self-contained true -o ./publish-ft-pdf
 
     - name: Package Release ZIP
       shell: pwsh
