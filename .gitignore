@@ -5,6 +5,7 @@
 publish/
 publish-ft-pdf/
 publish-ft-pdf-lite/
+compilacoes/
 *.zip
 
 ## Visual Studio & VS Code Cache

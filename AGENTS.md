@@ -1,18 +1,24 @@
-# Regra 1: Diretrizes de Edição, Compilação e Verificação de Código
+# Regra 1: Diretrizes de Edição, Pastas de Compilação e Fluxo de Teste/Atualização
 
-Esta regra define o protocolo obrigatório para operações de desenvolvimento, compilação e deploy neste projeto:
+Esta regra define o protocolo obrigatório para desenvolvimento, testes, compilação e deploy neste projeto:
 
 1. **Edição Exclusivamente Local**:
-   - Sempre que for solicitada qualquer edição, alteração ou refatoração, o agente deve operar e modificar estritamente os arquivos locais contidos no repositório/workspace.
-   - Não tentar aplicar alterações remotamente sem antes validar nos arquivos locais.
+   - Qualquer edição, melhoria ou refatoração deve ser realizada estritamente nos arquivos locais do projeto.
+   - NUNCA disparar compilações nem enviar nada ao Git automaticamente durante as rodadas de edição.
 
-2. **Protocolo Obrigatório ao Compilar**:
-   - Ao receber o comando ou solicitação para compilar:
-     a) Realizar a compilação local dos projetos para assegurar integridade.
-     b) Verificar e atualizar as GitHub Actions automáticas no Git garantindo as devidas permissões e autorizações (`permissions: contents: write`) para que releases e artefatos sejam gerados sem falhas de autenticação/segurança.
+2. **Área de Trabalho (Apenas Arquivos `.bat` de Teste Bruto)**:
+   - Na Área de Trabalho devem permanecer **exclusivamente os arquivos `.bat` de teste local** (`Testar FT PDF.bat` e `Testar FT PDF Lite.bat`).
+   - Esses scripts executam diretamente os arquivos brutos via `dotnet run`, permitindo testes imediatos das alterações sem gerar compilações prévias.
+   - NUNCA salvar executáveis `.exe` pesados nem criar pastas na Área de Trabalho (para evitar que ferramentas como o Google Drive gerem pastas temporárias como `.tmp.driveupload`).
 
-3. **Verificação Preventiva de Erros e Discrepâncias**:
-   - Antes e durante as compilações ou publicações, inspecionar minuciosamente os arquivos e o código:
-     - Checar se versões em `.csproj`, instaladores e telas de "Sobre/Atualizações" estão sincronizadas.
-     - Identificar e sanar arquivos órfãos, caminhos incorretos ou referências quebradas.
-     - Garantir que tags e gatilhos de CI/CD estejam consistentes com a versão vigente.
+3. **Estrutura da Pasta `compilacoes/` (Versionamento por Pastas)**:
+   - Toda e qualquer compilação solicitada deve ser salva exclusivamente dentro da pasta interna do projeto: `compilacoes/`.
+   - **Cada nova compilação deve gerar uma nova subpasta identificando a versão** (ex: `compilacoes/v2.0.0/`, `compilacoes/v2.1.0/`), contendo seus respectivos `.exe`.
+   - **Zero dependência de .NET:** Compilar sempre no modo Self-Contained (`--self-contained true`) para que o executável funcione direto em qualquer máquina sem solicitar instalação de runtimes do .NET.
+
+4. **Fluxo Estrito de Lançamento e Atualização**:
+   - **Passo 1 (Desenvolvimento):** Ajustar código localmente.
+   - **Passo 2 (Teste em Desenvolvimento):** O usuário testa as alterações na hora usando o `.bat` da Área de Trabalho (arquivos brutos).
+   - **Passo 3 (Solicitação de Compilação):** Quando o código estiver do jeito certo, o usuário pede expressamente a compilação indicando a nova versão. O agente compila e gera a nova pasta dentro de `compilacoes/vX.Y.Z/`.
+   - **Passo 4 (Validação do Executável):** O usuário testa os executáveis finais na pasta de compilação.
+   - **Passo 5 (Liberação para o GitHub):** Somente após a validação e autorização expressa do usuário (*"libero para atualização"*), criar a nova tag/versão e sincronizar com o GitHub para o acionamento do release automático.

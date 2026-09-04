@@ -23,6 +23,8 @@ using Cursors = System.Windows.Input.Cursors;
 using Button = System.Windows.Controls.Button;
 using Orientation = System.Windows.Controls.Orientation;
 using StackPanel = System.Windows.Controls.StackPanel;
+using DockPanel = System.Windows.Controls.DockPanel;
+using Dock = System.Windows.Controls.Dock;
 using TextBlock = System.Windows.Controls.TextBlock;
 using Border = System.Windows.Controls.Border;
 using ComboBoxItem = System.Windows.Controls.ComboBoxItem;
@@ -117,6 +119,51 @@ namespace FtPdf
             Close();
         }
 
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is DependencyObject dep)
+            {
+                DependencyObject? current = dep;
+                while (current != null && current != sender)
+                {
+                    if (current is System.Windows.Controls.Button)
+                        return;
+                    current = VisualTreeHelper.GetParent(current);
+                }
+            }
+
+            if (e.ClickCount == 2)
+            {
+                BtnMaximize_Click(sender, e);
+            }
+            else if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                try
+                {
+                    DragMove();
+                }
+                catch { }
+            }
+        }
+
+        private void ScrollViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is DependencyObject dep)
+            {
+                DependencyObject? current = dep;
+                while (current != null && current != sender)
+                {
+                    if (current is System.Windows.Controls.Button)
+                        return;
+                    if (current is Border b && b.Parent == PanelTabs)
+                        return;
+                    current = VisualTreeHelper.GetParent(current);
+                }
+            }
+
+            TitleBar_MouseLeftButtonDown(sender, e);
+        }
+
         #endregion
 
         private async void InitializeViewerAsync()
@@ -126,7 +173,10 @@ namespace FtPdf
                 // Set background color to match app background (#0F172A)
                 PdfWebViewer.DefaultBackgroundColor = System.Drawing.Color.FromArgb(15, 23, 42);
 
-                await PdfWebViewer.EnsureCoreWebView2Async();
+                var userDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FtPdf", "WebView2");
+                Directory.CreateDirectory(userDataFolder);
+                var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, userDataFolder);
+                await PdfWebViewer.EnsureCoreWebView2Async(env);
                 _isWebViewInitialized = true;
                 PdfWebViewer.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 PdfWebViewer.CoreWebView2.Settings.AreDevToolsEnabled = false;
@@ -300,20 +350,43 @@ namespace FtPdf
                         : Colors.Transparent),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(5),
-                    Padding = new Thickness(8, 3, 6, 3),
-                    Margin = new Thickness(0, 0, 4, 0),
+                    MinWidth = 160,
+                    MaxWidth = 280,
+                    Padding = new Thickness(12, 4, 8, 4),
+                    Margin = new Thickness(0, 0, 5, 0),
                     Cursor = Cursors.Hand
                 };
 
-                var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                var dp = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
 
                 var icon = new TextBlock
                 {
                     Text = "📄",
                     FontSize = 11,
-                    Margin = new Thickness(0, 0, 6, 0),
+                    Margin = new Thickness(0, 0, 8, 0),
                     VerticalAlignment = VerticalAlignment.Center
                 };
+                DockPanel.SetDock(icon, Dock.Left);
+
+                var closeBtn = new Button
+                {
+                    Content = "✕",
+                    FontSize = 9.5,
+                    Width = 18,
+                    Height = 18,
+                    Margin = new Thickness(8, 0, 0, 0),
+                    Background = Brushes.Transparent,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
+                    BorderThickness = new Thickness(0),
+                    Cursor = Cursors.Hand,
+                    ToolTip = "Fechar aba"
+                };
+                closeBtn.Click += (s, e) =>
+                {
+                    e.Handled = true;
+                    CloseTab(tab);
+                };
+                DockPanel.SetDock(closeBtn, Dock.Right);
 
                 var title = new TextBlock
                 {
@@ -321,35 +394,28 @@ namespace FtPdf
                     FontSize = 11.5,
                     FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
                     Foreground = new SolidColorBrush(isActive ? Colors.White : (Color)ColorConverter.ConvertFromString("#94A3B8")),
-                    MaxWidth = 160,
+                    MaxWidth = 210,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     VerticalAlignment = VerticalAlignment.Center
                 };
 
-                var closeBtn = new Button
-                {
-                    Content = "✕",
-                    FontSize = 9.5,
-                    Width = 16,
-                    Height = 16,
-                    Margin = new Thickness(6, 0, 0, 0),
-                    Background = Brushes.Transparent,
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
-                    BorderThickness = new Thickness(0),
-                    Cursor = Cursors.Hand
-                };
-                closeBtn.Click += (s, e) =>
-                {
-                    e.Handled = true;
-                    CloseTab(tab);
-                };
+                dp.Children.Add(icon);
+                dp.Children.Add(closeBtn);
+                dp.Children.Add(title);
+                tabBorder.Child = dp;
 
-                sp.Children.Add(icon);
-                sp.Children.Add(title);
-                sp.Children.Add(closeBtn);
-                tabBorder.Child = sp;
-
-                tabBorder.MouseLeftButtonDown += (s, e) => SetActiveTab(tab);
+                tabBorder.MouseLeftButtonDown += (s, e) =>
+                {
+                    SetActiveTab(tab);
+                    if (e.LeftButton == MouseButtonState.Pressed && e.ClickCount == 1)
+                    {
+                        try
+                        {
+                            DragMove();
+                        }
+                        catch { }
+                    }
+                };
 
                 PanelTabs.Children.Add(tabBorder);
             }

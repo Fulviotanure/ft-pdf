@@ -1,53 +1,85 @@
-using MessageBox = System.Windows.MessageBox;
 using System;
-using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
+using FtPdf.Services;
 
 namespace FtPdf
 {
     public partial class SettingsWindow : Window
     {
+        private UpdateCheckResult? _cachedResult;
+        private bool _isDownloading = false;
+
         public SettingsWindow()
         {
             InitializeComponent();
         }
 
-        private void BtnSetDefaultApp_Click(object sender, RoutedEventArgs e)
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            try
+            TxtCurrentVersion.Text = $"v{UpdateService.CurrentVersionString}";
+            TxtBadgeVersion.Text = $"Release {UpdateService.CurrentVersionString}";
+            await CheckUpdatesAsync();
+        }
+
+        private async Task CheckUpdatesAsync()
+        {
+            TxtStatus.Text = "Verificando atualizações...";
+            TxtLatestVersion.Text = "Verificando...";
+            PbStatus.Visibility = Visibility.Visible;
+            BtnAction.IsEnabled = false;
+
+            var result = await UpdateService.CheckForUpdatesAsync(isLite: false);
+            _cachedResult = result;
+
+            PbStatus.Visibility = Visibility.Collapsed;
+            BtnAction.IsEnabled = true;
+
+            if (result.HasUpdate)
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "ms-settings:defaultapps",
-                    UseShellExecute = true
-                });
+                TxtLatestVersion.Text = $"v{result.LatestVersion}";
+                TxtStatus.Text = $"Nova versão v{result.LatestVersion} disponível para instalação!";
+                BtnAction.Content = "⬇️ Atualizar Agora";
+                BtnAction.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"));
             }
-            catch (Exception ex)
+            else if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
-                MessageBox.Show(this, 
-                    $"Não foi possível abrir as configurações do Windows:\n{ex.Message}\n\nVocê pode definir manualmente em: Configurações do Windows > Aplicativos > Aplicativos Padrão.",
-                    "Aviso", MessageBoxButton.OK, MessageBoxImage.Information);
+                TxtLatestVersion.Text = "Indisponível";
+                TxtStatus.Text = "Não foi possível conectar ao canal de atualizações.";
+                BtnAction.Content = "🔄 Tentar Novamente";
+                BtnAction.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
+            }
+            else
+            {
+                TxtLatestVersion.Text = $"v{UpdateService.CurrentVersionString}";
+                TxtStatus.Text = "Você já está utilizando a versão mais recente.";
+                BtnAction.Content = "🔄 Verificar Novamente";
+                BtnAction.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
             }
         }
 
-        private void BtnOpenRepo_Click(object sender, RoutedEventArgs e)
+        private async void BtnAction_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "https://github.com/Fulviotanure/ft-pdf",
-                    UseShellExecute = true
-                });
-            }
-            catch {}
-        }
+            if (_isDownloading) return;
 
-        private void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show(this, 
-                "FT PDF v2.0.0 (Release 2)\n\nVocê está utilizando a versão mais recente! As compilações e novidades são publicadas automaticamente via GitHub Actions.",
-                "Atualizações", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (_cachedResult != null && _cachedResult.HasUpdate && !string.IsNullOrEmpty(_cachedResult.DownloadUrl))
+            {
+                _isDownloading = true;
+                BtnAction.IsEnabled = false;
+                PbStatus.Visibility = Visibility.Visible;
+                TxtStatus.Text = "Baixando nova versão e substituindo executável antigo...";
+
+                await UpdateService.DownloadAndApplyUpdateAsync(_cachedResult.DownloadUrl, "FtPdf.exe");
+
+                _isDownloading = false;
+                BtnAction.IsEnabled = true;
+                PbStatus.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                await CheckUpdatesAsync();
+            }
         }
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
