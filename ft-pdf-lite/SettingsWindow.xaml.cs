@@ -45,7 +45,7 @@ namespace FtPdfLite
         private void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show(this, 
-                "FT PDF Lite v1.0.0 (Release 1)\n\nVocê está utilizando a versão mais recente! As compilações e novidades são publicadas automaticamente via GitHub Actions.",
+                "FT PDF Lite v2.0.0 (Release 2)\n\nVocê está utilizando a versão mais recente! As compilações e novidades são publicadas automaticamente via GitHub Actions.",
                 "Atualizações", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 

@@ -2,7 +2,7 @@
 ; Cria o instalador oficial para Windows com registro de programa padrão e atalhos
 
 #define MyAppName "FT PDF Lite"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "Fulvio Tanure"
 #define MyAppURL "https://github.com/Fulviotanure/ft-pdf"
 #define MyAppExeName "FtPdfLite.exe"
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=..\dist-installer
-OutputBaseFilename=Instalador_FT_PDF_Lite_v1.0.0
+OutputBaseFilename=Instalador_FT_PDF_Lite_v2.0.0
 SetupIconFile=..\Assets\app.ico
 Compression=lzma
 SolidCompression=yes

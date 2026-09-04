@@ -24,6 +24,6 @@ Versão ultraleve, rápida e minimalista do **FT PDF** focada exclusivamente em 
 
 ---
 
-## 📦 Versão 1.0.0 (Release 1)
-- CI/CD automatizado via GitHub Actions.
+## 📦 Versão 2.0.0 (Release 2)
+- CI/CD automatizado via GitHub Actions com autorização de releases.
 - Compatível com Windows 10 e Windows 11 (x64).

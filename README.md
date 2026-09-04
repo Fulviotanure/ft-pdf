@@ -38,11 +38,11 @@ ft-pdf/
 ## 🚀 Como Acionar os Releases no GitHub Actions
 
 ### 1. Release do FT PDF (Edição Completa)
-- **Tag:** `v1.0.0`, `v1.1.0` (ou qualquer tag `vX.Y.Z` ou `ft-pdf-v*`)
+- **Tag:** `v2.0.0`, `v2.1.0` (ou qualquer tag `vX.Y.Z` ou `ft-pdf-v*`)
 - **Manual:** Na aba **Actions** do GitHub, selecione o workflow **"Release FT PDF"** > **Run workflow**.
 - **Artefatos:** `FtPdf.exe` e `FT-PDF-Windows-x64.zip`.
 
 ### 2. Release do FT PDF Lite (Edição Ultraleve)
-- **Tag:** `lite-v1.0.0`, `v1.0.0-lite` (ou qualquer tag `lite-v*` ou `v*-lite`)
+- **Tag:** `lite-v2.0.0`, `v2.0.0-lite` (ou qualquer tag `lite-v*` ou `v*-lite`)
 - **Manual:** Na aba **Actions** do GitHub, selecione o workflow **"Release FT PDF Lite"** > **Run workflow**.
 - **Artefatos:** `FtPdfLite.exe` e `FT-PDF-Lite-Windows-x64.zip`.
