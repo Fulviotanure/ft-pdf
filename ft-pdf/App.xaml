@@ -1,7 +1,6 @@
 <Application x:Class="FtPdf.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <!-- Modern Dark Theme Palette -->
         <Color x:Key="BgColor">#0F172A</Color>

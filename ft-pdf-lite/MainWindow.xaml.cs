@@ -42,10 +42,46 @@ namespace FtPdfLite
         {
             InitializeComponent();
             StateChanged += MainWindow_StateChanged;
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
             InitializeViewerAsync();
             CheckCommandLineArgs();
             Loaded += async (s, e) => await UpdateService.AutoCheckOnStartupAsync(isLite: true, this);
             Loaded += (s, e) => CheckDefaultAppBanner();
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control))
+            {
+                if (e.Key == System.Windows.Input.Key.O || e.Key == System.Windows.Input.Key.T)
+                {
+                    e.Handled = true;
+                    BtnOpenFile_Click(this, new RoutedEventArgs());
+                }
+                else if (e.Key == System.Windows.Input.Key.W)
+                {
+                    if (_activeTab != null)
+                    {
+                        e.Handled = true;
+                        CloseTab(_activeTab);
+                    }
+                }
+                else if (e.Key == System.Windows.Input.Key.S)
+                {
+                    e.Handled = true;
+                    BtnQuickSave_Click(this, new RoutedEventArgs());
+                }
+                else if (e.Key == System.Windows.Input.Key.Tab)
+                {
+                    if (_tabs.Count > 1 && _activeTab != null)
+                    {
+                        e.Handled = true;
+                        int step = System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift) ? -1 : 1;
+                        int idx = (_tabs.IndexOf(_activeTab) + step + _tabs.Count) % _tabs.Count;
+                        SetActiveTab(_tabs[idx]);
+                    }
+                }
+            }
         }
 
         private void CheckCommandLineArgs()
@@ -228,6 +264,11 @@ namespace FtPdfLite
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(filePath))
+                    return;
+
+                try { filePath = Path.GetFullPath(filePath); } catch { }
+
                 if (!File.Exists(filePath))
                 {
                     MessageBox.Show(this, $"O arquivo não foi encontrado:\n{filePath}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -273,6 +314,7 @@ namespace FtPdfLite
         private void SetActiveTab(PdfDocumentTab tab)
         {
             _activeTab = tab;
+            Title = $"{tab.FileName} - FT PDF Lite";
             UpdateTabsBar();
 
             PanelEmptyState.Visibility = Visibility.Collapsed;
@@ -312,6 +354,7 @@ namespace FtPdfLite
         private void CloseAllDocuments()
         {
             _activeTab = null;
+            Title = "FT PDF Lite - Leitor e Validador";
             PanelEmptyState.Visibility = Visibility.Visible;
             PanelActiveContent.Visibility = Visibility.Collapsed;
             BtnQuickSave.Visibility = Visibility.Collapsed;
@@ -393,17 +436,19 @@ namespace FtPdfLite
                 dp.Children.Add(title);
                 tabBorder.Child = dp;
 
+                tabBorder.MouseDown += (s, e) =>
+                {
+                    if (e.ChangedButton == MouseButton.Middle && e.ButtonState == MouseButtonState.Pressed)
+                    {
+                        e.Handled = true;
+                        CloseTab(tab);
+                    }
+                };
+
                 tabBorder.MouseLeftButtonDown += (s, e) =>
                 {
                     SetActiveTab(tab);
-                    if (e.LeftButton == MouseButtonState.Pressed && e.ClickCount == 1)
-                    {
-                        try
-                        {
-                            DragMove();
-                        }
-                        catch { }
-                    }
+                    e.Handled = true;
                 };
 
                 PanelTabs.Children.Add(tabBorder);
